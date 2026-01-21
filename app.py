@@ -75,11 +75,11 @@ if left_file and right_file:
     
     # --- UPDATED CONFIGURATION (SWAPPED) ---
     
-    # Left File targets: ID, Hold Time, Hold Rule
+    # Left File targets: ID, Hold Time, Hold comment
     left_targets = {
         'ID':   ['LOT_ID', 'LOTID'],
-        'Time': ['LOT_HOLD_TIME', 'HOLD_TIME', 'TIME'], 
-        'Rule': ['LOT_HOLD_RULE', 'HOLD_RULE', 'RULE']
+        'Time': ['LOT_HOLD_TIME', 'TIME'], 
+        'Comment': ['LOT_HOLD_COMMENT']
     }
 
     # Right File targets: ID, Chart, DateTime, Equipment
@@ -115,14 +115,14 @@ if left_file and right_file:
 
         with c1:
             st.subheader("1. Temptation Data")
-            # Display ID, Time, and Rule
-            display_cols = ['ID', 'Found_in_Right', 'Time', 'Rule']
+            # Display ID, Time, and Comment
+            display_cols = ['Found_in_Right','ID','Time', 'Comment']
             
             selection = st.dataframe(
                 df_left[display_cols],
                 on_select="rerun",
                 selection_mode="single-row",
-                use_container_width=True,
+                width=1000,
                 hide_index=True,
                 column_config={
                     "Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True),
