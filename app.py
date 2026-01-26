@@ -182,7 +182,6 @@ if left_file and right_file:
                     st.warning("❌ No record found in Right file.")
             else:
                 st.info("👈 Select a Hold Record on the left.")
-
 # --- 3. Consolidation & Trending ---
 st.divider()
 st.header("📊 3. Trend Consolidation")
@@ -196,15 +195,23 @@ if trend_files:
     # 1. Read and combine files (Robust to Separators)
     for file in trend_files:
         try:
-            # Attempt 1: Try reading with Python's 'sniffer' (auto-detects comma or semicolon)
+            # Attempt 1: Try reading with Python's 'sniffer'
             df_temp = pd.read_csv(file, sep=None, engine='python')
             
             # Validation: specific check for common issue where sniff fails
-            # If 'Match_Status' isn't a column, force try semicolon
             if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns:
                 file.seek(0)
                 df_temp = pd.read_csv(file, sep=';')
             
+            # --- [FIX] Normalize Column Names Immediately ---
+            # If a file has "New_Comments", rename it to "Reason" right now.
+            # This ensures all files match perfectly when we combine them.
+            if 'New_Comments' in df_temp.columns:
+                df_temp.rename(columns={'New_Comments': 'Reason'}, inplace=True)
+            if 'Comments' in df_temp.columns:
+                df_temp.rename(columns={'Comments': 'Match_Status'}, inplace=True)
+            # -----------------------------------------------
+
             all_reports.append(df_temp)
         except Exception as e:
             st.error(f"Error reading {file.name}: {e}")
@@ -215,10 +222,6 @@ if trend_files:
         # Check required columns
         required_cols = ['Match_Status', 'Time']
         
-        # [Helper] If user renamed 'Reason' to 'New_Comments', let's auto-rename it for the chart
-        if 'New_Comments' in full_df.columns and 'Reason' not in full_df.columns:
-            full_df.rename(columns={'New_Comments': 'Reason'}, inplace=True)
-
         if all(col in full_df.columns for col in required_cols):
             
             # --- DATE PARSING ---
@@ -237,6 +240,7 @@ if trend_files:
             
             if not valid_df.empty:
                 # --- BUSINESS LOGIC ---
+                # Subtract 7 hours so 07:00 becomes 00:00 of the same day
                 valid_df['Adjusted_DT'] = valid_df['DT'] - pd.Timedelta(hours=7)
                 valid_df['Business_Date'] = valid_df['Adjusted_DT'].dt.normalize()
                 
@@ -257,7 +261,10 @@ if trend_files:
                 chart_data = chart_data.melt(['Business_Date', 'Date_Label'], var_name='Status', value_name='Percentage')
                 
                 chart1 = alt.Chart(chart_data).mark_bar().encode(
-                    x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", order="ascending"), title='Date', axis=alt.Axis(labelAngle=0)), 
+                    x=alt.X('Date_Label:O', 
+                            sort=alt.EncodingSortField(field="Business_Date", op="min", order="ascending"), 
+                            title='Date', 
+                            axis=alt.Axis(labelAngle=0)), 
                     y=alt.Y('Percentage:Q', scale=alt.Scale(domain=[0, 100])),
                     color=alt.Color('Status', scale=alt.Scale(domain=['Matching %', 'Missing %'], range=['#28a745', '#dc3545'])),
                     tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Status', alt.Tooltip('Percentage', format='.1f')]
@@ -279,7 +286,7 @@ if trend_files:
                     missing_df = valid_df[valid_df['Match_Status'] == 'Missing'].copy()
                     
                     if not missing_df.empty:
-                        # Handle NaN reasons
+                        # Handle NaNs
                         missing_df['Reason'] = missing_df['Reason'].fillna("Unknown")
                         
                         # Group by Date and Reason
@@ -290,7 +297,6 @@ if trend_files:
                         
                         # Create Chart
                         chart2 = alt.Chart(reason_counts).mark_bar().encode(
-                            # FIX 2: Added op="min" here as well. Critical for grouped data.
                             x=alt.X('Date_Label:O', 
                                     sort=alt.EncodingSortField(field="Business_Date", op="min", order="ascending"), 
                                     title='Date', 
@@ -317,7 +323,7 @@ if trend_files:
                     else:
                         st.info("✅ No missing data found! (Or all missing items have no recorded reason).")
                 else:
-                    st.warning("⚠️ No 'Reason' column found. If your column is named 'New_Comments', I automatically renamed it, but check your CSV header.")
+                    st.warning("⚠️ No 'Reason' (or 'New_Comments') column found in the uploaded files.")
                     
             else:
                 st.warning("Could not parse dates. Please ensure the Time format is 'YYYYMMDD HHMMSS'.")
