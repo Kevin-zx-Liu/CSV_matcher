@@ -294,6 +294,12 @@ if trend_files:
                         
                         # Add Date Label for sorting
                         reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
+
+                        # --- [FIX] Calculate Master List of Reasons ---
+                        # We get every unique reason from the entire dataset and sort them.
+                        # This 'unique_reasons' list is passed to the chart domain.
+                        unique_reasons = sorted(reason_counts['Reason'].unique().tolist())
+                        # ---------------------------------------------
                         
                         # Create Chart
                         chart2 = alt.Chart(reason_counts).mark_bar().encode(
@@ -302,7 +308,7 @@ if trend_files:
                                     title='Date', 
                                     axis=alt.Axis(labelAngle=0)),
                             y=alt.Y('Count:Q', title='Count of Missing Items'),
-                            color=alt.Color('Reason', title='Reason', scale=alt.Scale(scheme='tableau10')),
+                            color=alt.Color('Reason', title='Reason', scale=alt.Scale(domain=unique_reasons,scheme='tableau10')),
                             tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Reason', 'Count']
                         ).properties(height=400)
                         
