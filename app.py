@@ -290,9 +290,12 @@ if trend_files:
                         
                         # Create Chart
                         chart2 = alt.Chart(reason_counts).mark_bar().encode(
-                            x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", order="ascending"), title='Date', axis=alt.Axis(labelAngle=0)),
+                            # FIX 2: Added op="min" here as well. Critical for grouped data.
+                            x=alt.X('Date_Label:O', 
+                                    sort=alt.EncodingSortField(field="Business_Date", op="min", order="ascending"), 
+                                    title='Date', 
+                                    axis=alt.Axis(labelAngle=0)),
                             y=alt.Y('Count:Q', title='Count of Missing Items'),
-                            # FIXED LINE BELOW: scheme goes inside alt.Scale()
                             color=alt.Color('Reason', title='Reason', scale=alt.Scale(scheme='tableau10')),
                             tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Reason', 'Count']
                         ).properties(height=400)
