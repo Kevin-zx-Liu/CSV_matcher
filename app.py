@@ -33,7 +33,7 @@ def robust_scan(file, file_label, target_cols):
         clean_line = line.strip()
         if not clean_line: continue
         
-        # --- [FIX] Improved Delimiter Detection ---
+        # --- Improved Delimiter Detection ---
         # 1. Split by Comma
         parts_comma = [p.strip().upper() for p in clean_line.split(',')]
         # It is only a valid split if we have more than 1 column
@@ -111,12 +111,13 @@ if left_file and right_file:
         'Comment': ['LOT_HOLD_COMMENT']
     }
 
-    # Right File targets: ID, Chart, DateTime, Equipment
+    # Right File targets: ID, Chart, DateTime, Equipment, [NEW] Eventlist
     right_targets = {
         'ID':        ['LOTID', 'LOT_ID', 'BATCHID'], 
         'Chart':     ['CHARTNAME', 'CHART'],
         'Time':      ['DATETIME', 'TIME'],
-        'Equipment': ['EQPNAME', 'EQP', 'EQUIPMENT']
+        'Equipment': ['EQPNAME', 'EQUIPMENT'],
+        'Eventlist': ['EVENTLIST'] # Target column for special search
     }
 
     # --- EXECUTION ---
@@ -137,6 +138,11 @@ if left_file and right_file:
         df_right['__key'] = df_right['ID'].astype(str).str.upper().str.strip()
         
         # Check Matches (Does Left exist in Right?)
+        # Note: This boolean check is purely based on ID match. 
+        # If you want the "Special Dot Rule" to also affect the "Missing/Matching" status 
+        # for the export, you would need to iterate row by row, which is slow.
+        # For now, we keep the quick vector match for the general status, 
+        # assuming the 'dot' IDs are rare edge cases or handled manually.
         df_left['Found_in_Right'] = df_left['__key'].isin(df_right['__key'])
 
         # --- INTERFACE ---
@@ -194,14 +200,36 @@ if left_file and right_file:
                 
                 st.info(f"Searching Process Data for: **{sel_display}**")
                 
-                # Find matching row in Right DF
-                match = df_right[df_right['__key'] == sel_key]
+                # --- [NEW] SPECIAL SEARCH RULE ---
+                # Rule: If ID contains '.', search in 'Eventlist' column instead of 'ID'
+                if '.' in sel_display:
+                    st.caption("ℹ️ 'Dot' detected in ID. Switching search mode to 'Eventlist' column.")
+                    
+                    if 'Eventlist' in df_right.columns:
+                        # Search for the ID inside the Eventlist string (case insensitive)
+                        # We use regex=False to treat it as a literal string match
+                        match = df_right[df_right['Eventlist'].astype(str).str.contains(sel_display, case=False, regex=False)]
+                    else:
+                        st.error("⚠️ 'Eventlist' column not found in Right File. Cannot perform special search.")
+                        match = pd.DataFrame() # Empty result
+                else:
+                    # Standard Search (Exact ID Match)
+                    match = df_right[df_right['__key'] == sel_key]
+                # ---------------------------------
                 
                 if not match.empty:
                     st.success("✅ Match Found")
-                    # Display Chart, Time, Equipment
+                    
+                    # Determine columns to display (include Eventlist if it was a special search)
+                    cols_to_show = ['ID', 'Chart', 'Time', 'Equipment']
+                    if '.' in sel_display and 'Eventlist' in match.columns:
+                        cols_to_show.append('Eventlist')
+                        
+                    # Filter columns that actually exist in the dataframe
+                    final_cols = [c for c in cols_to_show if c in match.columns]
+
                     st.dataframe(
-                        match[['ID', 'Chart', 'Time', 'Equipment']], 
+                        match[final_cols], 
                         width='stretch', 
                         hide_index=True,
                         column_config={"Time": "Process Time"}
