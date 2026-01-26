@@ -193,10 +193,18 @@ trend_files = st.file_uploader("Upload Daily Reports", accept_multiple_files=Tru
 if trend_files:
     all_reports = []
     
-    # 1. Read and combine files
+    # 1. Read and combine files (Robust to Separators)
     for file in trend_files:
         try:
-            df_temp = pd.read_csv(file)
+            # Attempt 1: Try reading with Python's 'sniffer' (auto-detects comma or semicolon)
+            df_temp = pd.read_csv(file, sep=None, engine='python')
+            
+            # Validation: specific check for common issue where sniff fails
+            # If 'Match_Status' isn't a column, force try semicolon
+            if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns:
+                file.seek(0)
+                df_temp = pd.read_csv(file, sep=';')
+            
             all_reports.append(df_temp)
         except Exception as e:
             st.error(f"Error reading {file.name}: {e}")
@@ -206,9 +214,14 @@ if trend_files:
         
         # Check required columns
         required_cols = ['Match_Status', 'Time']
+        
+        # [Helper] If user renamed 'Reason' to 'New_Comments', let's auto-rename it for the chart
+        if 'New_Comments' in full_df.columns and 'Reason' not in full_df.columns:
+            full_df.rename(columns={'New_Comments': 'Reason'}, inplace=True)
+
         if all(col in full_df.columns for col in required_cols):
             
-            # 2. Parse Dates (Handle Parsing Errors)
+            # --- DATE PARSING ---
             full_df['DT'] = pd.to_datetime(
                 full_df['Time'], 
                 format='%Y%m%d %H%M%S', 
@@ -223,60 +236,86 @@ if trend_files:
             valid_df = full_df.dropna(subset=['DT']).copy()
             
             if not valid_df.empty:
-                # 3. Apply Business Day Logic (7AM to 7AM)
+                # --- BUSINESS LOGIC ---
                 valid_df['Adjusted_DT'] = valid_df['DT'] - pd.Timedelta(hours=7)
                 valid_df['Business_Date'] = valid_df['Adjusted_DT'].dt.normalize()
                 
-                # 4. Group by Business Date and Status
-                daily_counts = valid_df.groupby(['Business_Date', 'Match_Status']).size().unstack(fill_value=0)
+                # --- CHART 1: MATCHING VS MISSING ---
+                st.subheader("1. Daily Matching vs Missing (%)")
                 
-                # Ensure columns exist
+                daily_counts = valid_df.groupby(['Business_Date', 'Match_Status']).size().unstack(fill_value=0)
                 if 'Matching' not in daily_counts.columns: daily_counts['Matching'] = 0
                 if 'Missing' not in daily_counts.columns: daily_counts['Missing'] = 0
                 
-                # Calculate Totals and Percentages
                 daily_counts['Total'] = daily_counts['Matching'] + daily_counts['Missing']
                 daily_counts['Matching %'] = (daily_counts['Matching'] / daily_counts['Total']) * 100
                 daily_counts['Missing %'] = (daily_counts['Missing'] / daily_counts['Total']) * 100
                 
-                # 5. Visualization
-                st.subheader("Daily Matching vs Missing (%)")
-                
                 # Prepare data
                 chart_data = daily_counts[['Matching %', 'Missing %']].reset_index()
-                
-                # [NEW] Create a string label for the axis (e.g. "Jan 08")
-                # This ensures the chart treats them as text categories, not a timeline
                 chart_data['Date_Label'] = chart_data['Business_Date'].dt.strftime('%b %d')
-                
                 chart_data = chart_data.melt(['Business_Date', 'Date_Label'], var_name='Status', value_name='Percentage')
                 
-                # Create Stacked Bar Chart
-                chart = alt.Chart(chart_data).mark_bar().encode(
-                    # Use the String Label as Ordinal (:O)
-                    # We sort by 'Business_Date' so Jan 05 comes before Jan 06 correctly
-                    x=alt.X('Date_Label:O', 
-                            sort=alt.EncodingSortField(field="Business_Date", order="ascending"),
-                            title='Date',
-                            axis=alt.Axis(labelAngle=0)), 
+                chart1 = alt.Chart(chart_data).mark_bar().encode(
+                    x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", order="ascending"), title='Date', axis=alt.Axis(labelAngle=0)), 
                     y=alt.Y('Percentage:Q', scale=alt.Scale(domain=[0, 100])),
-                    color=alt.Color('Status', scale=alt.Scale(domain=['Missing %', 'Matching %'], range=['#dc3545', '#28a745'])),
-                    tooltip=[
-                        alt.Tooltip('Date_Label', title='Date'), 
-                        'Status', 
-                        alt.Tooltip('Percentage', format='.1f')
-                    ]
-                ).properties(height=400)
+                    color=alt.Color('Status', scale=alt.Scale(domain=['Matching %', 'Missing %'], range=['#28a745', '#dc3545'])),
+                    tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Status', alt.Tooltip('Percentage', format='.1f')]
+                ).properties(height=350)
                 
-                st.altair_chart(chart, use_container_width=True)
+                st.altair_chart(chart1, use_container_width=True)
                 
-                # Show source data table
-                with st.expander("View Data Source"):
-                    display_table = daily_counts.copy()
-                    display_table.index = display_table.index.strftime('%Y-%m-%d')
-                    st.dataframe(display_table.sort_index())
+                # Export Button 1
+                export_df1 = daily_counts.copy()
+                export_df1.index = export_df1.index.strftime('%Y-%m-%d')
+                st.download_button("📥 Export Status Data (CSV)", export_df1.to_csv().encode('utf-8'), "trend_status.csv", "text/csv")
+                
+                # --- CHART 2: MISSING REASONS TREND ---
+                st.divider()
+                st.subheader("2. Missing Reasons Analysis")
+                
+                if 'Reason' in valid_df.columns:
+                    # Filter only Missing rows
+                    missing_df = valid_df[valid_df['Match_Status'] == 'Missing'].copy()
+                    
+                    if not missing_df.empty:
+                        # Handle NaN reasons
+                        missing_df['Reason'] = missing_df['Reason'].fillna("Unknown")
+                        
+                        # Group by Date and Reason
+                        reason_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
+                        
+                        # Add Date Label for sorting
+                        reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
+                        
+                        # Create Chart
+                        chart2 = alt.Chart(reason_counts).mark_bar().encode(
+                            x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", order="ascending"), title='Date', axis=alt.Axis(labelAngle=0)),
+                            y=alt.Y('Count:Q', title='Count of Missing Items'),
+                            color=alt.Color('Reason', title='Reason', scheme='tableau10'),
+                            tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Reason', 'Count']
+                        ).properties(height=400)
+                        
+                        st.altair_chart(chart2, use_container_width=True)
+                        
+                        # Data Table & Export
+                        with st.expander("View Reason Breakdown"):
+                            pivot_reason = reason_counts.pivot(index='Business_Date', columns='Reason', values='Count').fillna(0)
+                            pivot_reason.index = pivot_reason.index.strftime('%Y-%m-%d')
+                            st.dataframe(pivot_reason)
+                            
+                            st.download_button(
+                                "📥 Export Reason Data (CSV)", 
+                                pivot_reason.to_csv().encode('utf-8'), 
+                                "trend_reasons.csv", 
+                                "text/csv"
+                            )
+                    else:
+                        st.info("✅ No missing data found! (Or all missing items have no recorded reason).")
+                else:
+                    st.warning("⚠️ No 'Reason' column found. If your column is named 'New_Comments', I automatically renamed it, but check your CSV header.")
                     
             else:
                 st.warning("Could not parse dates. Please ensure the Time format is 'YYYYMMDD HHMMSS'.")
         else:
-            st.error(f"Uploaded files are missing required columns: {required_cols}")
+            st.error(f"Uploaded files are missing required columns: {required_cols}. Please check if the file uses standard headers.")
