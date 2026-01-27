@@ -275,21 +275,29 @@ if trend_files:
                 file.seek(0)
                 df_temp = pd.read_csv(file, sep=';')
             
-            # Normalize Columns
-            if 'New_Comments' in df_temp.columns:
-                df_temp.rename(columns={'New_Comments': 'Reason'}, inplace=True)
-            if 'new comment' in df_temp.columns:
-                df_temp.rename(columns={'new comment': 'Reason'}, inplace=True)
-            if 'new_comment' in df_temp.columns:
-                df_temp.rename(columns={'new_comment': 'Reason'}, inplace=True)
-            if 'new_comments' in df_temp.columns:
-                df_temp.rename(columns={'new_comments': 'Reason'}, inplace=True)
-            if 'comment' in df_temp.columns:
-                df_temp.rename(columns={'comment': 'Match_Status'}, inplace=True)
-            if 'LOT_HOLD_TIME' in df_temp.columns:
-                df_temp.rename(columns={'LOT_HOLD_TIME': 'Time'}, inplace=True)
+            # 2. Rename dictionary (Handles variations in headers)
+            rename_map = {
+                'New_Comments': 'Reason',
+                'new comments': 'Reason',
+                'New Comments': 'Reason',
+                'new comment'   : 'Reason',
+                'new_comment'   : 'Reason',
+                'new_comments'  : 'Reason',
+                'comment'       : 'Match_Status',
+                'Comments': 'Match_Status',
+                'LOT_HOLD_TIME': 'Time'
+            }
+            df_temp.rename(columns=rename_map, inplace=True)
+          
             if 'Match_Status' in df_temp.columns:
                 df_temp['Match_Status'] = df_temp['Match_Status'].astype(str).str.title().str.strip()
+
+                # Explicit override just to be 100% sure
+                df_temp['Match_Status'] = df_temp['Match_Status'].replace({
+                    'Update Needed': 'Update needed',
+                    'Matching': 'Matching',
+                    'Missing': 'Missing'
+                })
             all_reports.append(df_temp)
         except Exception as e:
             st.error(f"Error reading {file.name}: {e}")
