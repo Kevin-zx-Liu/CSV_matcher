@@ -278,8 +278,12 @@ if trend_files:
             # Normalize Columns
             if 'New_Comments' in df_temp.columns:
                 df_temp.rename(columns={'New_Comments': 'Reason'}, inplace=True)
+            if 'new comment' in df_temp.columns:
+                df_temp.rename(columns={'new comment': 'Reason'}, inplace=True)
             if 'new_comment' in df_temp.columns:
                 df_temp.rename(columns={'new_comment': 'Reason'}, inplace=True)
+            if 'new_comments' in df_temp.columns:
+                df_temp.rename(columns={'new_comments': 'Reason'}, inplace=True)
             if 'comment' in df_temp.columns:
                 df_temp.rename(columns={'comment': 'Match_Status'}, inplace=True)
             if 'LOT_HOLD_TIME' in df_temp.columns:
@@ -351,8 +355,7 @@ if trend_files:
                 st.subheader("2. Missing Reasons Analysis")
                 
                 if 'Reason' in valid_df.columns:
-                    missing_df = valid_df[valid_df['Match_Status'] == 'Missing'].copy()
-                    
+                    missing_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update Needed'])].copy()
                     if not missing_df.empty:
                         missing_df['Reason'] = missing_df['Reason'].fillna("Unknown")
                         reason_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
