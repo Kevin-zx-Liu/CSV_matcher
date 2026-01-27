@@ -363,9 +363,16 @@ if trend_files:
                 st.subheader("2. Missing Reasons Analysis")
                 
                 if 'Reason' in valid_df.columns:
-                    missing_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update Needed'])].copy()
+                    missing_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update needed'])].copy()
                     if not missing_df.empty:
                         missing_df['Reason'] = missing_df['Reason'].fillna("Unknown")
+
+                        # This converts "limit changed" -> "Limit changed" so duplicates merge
+                        missing_df['Reason'] = missing_df['Reason'].astype(str).str.strip().str.capitalize()
+                        
+                        # Handle case where "Unknown" became "Unknown" correctly, but "nan" strings might need fixing
+                        missing_df['Reason'] = missing_df['Reason'].replace({'Nan': 'Unknown', 'None': 'Unknown', '': 'Unknown'})
+                        
                         reason_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
                         reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
 
