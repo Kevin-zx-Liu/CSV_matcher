@@ -284,7 +284,8 @@ if trend_files:
                 df_temp.rename(columns={'comment': 'Match_Status'}, inplace=True)
             if 'LOT_HOLD_TIME' in df_temp.columns:
                 df_temp.rename(columns={'LOT_HOLD_TIME': 'Time'}, inplace=True)
-
+            if 'Match_Status' in df_temp.columns:
+                df_temp['Match_Status'] = df_temp['Match_Status'].astype(str).str.title().str.strip()
             all_reports.append(df_temp)
         except Exception as e:
             st.error(f"Error reading {file.name}: {e}")
