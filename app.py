@@ -271,15 +271,19 @@ if trend_files:
         try:
             df_temp = pd.read_csv(file, sep=None, engine='python')
             
-            if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns:
+            if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns or 'LOT_HOLD_TIME' not in df_temp.columns:
                 file.seek(0)
                 df_temp = pd.read_csv(file, sep=';')
             
             # Normalize Columns
             if 'New_Comments' in df_temp.columns:
                 df_temp.rename(columns={'New_Comments': 'Reason'}, inplace=True)
-            if 'Comments' in df_temp.columns:
-                df_temp.rename(columns={'Comments': 'Match_Status'}, inplace=True)
+            if 'new_comment' in df_temp.columns:
+                df_temp.rename(columns={'new_comment': 'Reason'}, inplace=True)
+            if 'comment' in df_temp.columns:
+                df_temp.rename(columns={'comment': 'Match_Status'}, inplace=True)
+            if 'LOT_HOLD_TIME' in df_temp.columns:
+                df_temp.rename(columns={'LOT_HOLD_TIME': 'Time'}, inplace=True)
 
             all_reports.append(df_temp)
         except Exception as e:
@@ -386,4 +390,4 @@ if trend_files:
             else:
                 st.warning("Could not parse dates. Please ensure the Time format is 'YYYYMMDD HHMMSS'.")
         else:
-            st.error(f"Uploaded files are missing required columns: {required_cols}. Please check if the file uses standard headers.")
+            st.error(f"Uploaded files are missing required columns: {required_cols}. Please check if the file uses standard headers. Found headers: {full_df.columns.tolist()}")
