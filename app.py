@@ -274,6 +274,9 @@ if trend_files:
             if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns or 'LOT_HOLD_TIME' not in df_temp.columns:
                 file.seek(0)
                 df_temp = pd.read_csv(file, sep=';')
+
+            # 1. Clean whitespaces in column names
+            df_temp.columns = df_temp.columns.str.strip()
             
             # 2. Rename dictionary (Handles variations in headers)
             rename_map = {
