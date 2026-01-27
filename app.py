@@ -99,7 +99,7 @@ if left_file and right_file:
     left_targets = {
         'ID':   ['LOT_ID', 'LOTID'],
         'Time': ['LOT_HOLD_TIME', 'TIME'], 
-        'Comment': ['LOT_HOLD_COMMENT']
+        'Info': ['LOT_HOLD_COMMENT']
     }
 
     right_targets = {
@@ -155,7 +155,7 @@ if left_file and right_file:
                     df_left.at[idx, 'Found_in_Right'] = True
         # =========================================================
 
-        # --- INTERFACE ---
+    # --- INTERFACE ---
         c1, c2 = st.columns([1, 1])
 
         with c1:
@@ -164,19 +164,44 @@ if left_file and right_file:
             # --- EXPORT LOGIC ---
             df_export = df_left.copy()
             df_export['Match_Status'] = df_export['Found_in_Right'].apply(lambda x: "Matching" if x else "Missing")
-            export_cols = ['Match_Status', 'ID', 'Time', 'Comment']
+            
+            # --- [NEW] DYNAMIC FILENAME GENERATION ---
+            # Default filename
+            export_filename = "matching_report.csv"
+            
+            try:
+                # 1. Parse dates (Handle formats)
+                temp_dates = pd.to_datetime(df_export['Time'], format='%Y%m%d %H%M%S', errors='coerce')
+                # Fallback for other formats if mostly NaT
+                if temp_dates.isna().sum() > (len(temp_dates) * 0.5): 
+                     temp_dates = pd.to_datetime(df_export['Time'], errors='coerce')
+                
+                # 2. Subtract 7 hours to get "Business Date"
+                # (Jan 2 08:00 -> Jan 2 | Jan 3 06:00 -> Jan 2)
+                business_dates = temp_dates - pd.Timedelta(hours=7)
+                
+                # 3. Find the most common date (mode) to name the file
+                if not business_dates.dropna().empty:
+                    top_date = business_dates.mode()[0]
+                    date_suffix = top_date.strftime('%m%d') # Format MMDD (e.g. 0102)
+                    export_filename = f"matching_report_{date_suffix}.csv"
+            except Exception as e:
+                print(f"Date parsing failed for filename generation: {e}")
+            # ----------------------------------------
+            
+            export_cols = ['Match_Status', 'ID', 'Time', 'Info']
             csv_data = df_export[export_cols].to_csv(index=False).encode('utf-8')
             
             st.download_button(
-                label="📥 Export Report (csv)",
+                label=f"📥 Export Report ({export_filename})",
                 data=csv_data,
-                file_name="matching_report.csv",
+                file_name=export_filename,
                 mime="text/csv",
                 help="Download left table with 'Matching' or 'Missing' status."
             )
             # --------------------------
 
-            display_cols = ['Found_in_Right','ID','Time', 'Comment']
+            display_cols = ['Found_in_Right','ID','Time', 'Info']
             
             selection = st.dataframe(
                 df_left[display_cols],
@@ -289,12 +314,14 @@ if trend_files:
                 daily_counts = valid_df.groupby(['Business_Date', 'Match_Status']).size().unstack(fill_value=0)
                 if 'Matching' not in daily_counts.columns: daily_counts['Matching'] = 0
                 if 'Missing' not in daily_counts.columns: daily_counts['Missing'] = 0
-                
-                daily_counts['Total'] = daily_counts['Matching'] + daily_counts['Missing']
+                if 'Update needed' not in daily_counts.columns: daily_counts['Update needed'] = 0
+
+                daily_counts['Total'] = daily_counts['Matching'] + daily_counts['Missing'] + daily_counts['Update needed']
                 daily_counts['Matching %'] = (daily_counts['Matching'] / daily_counts['Total']) * 100
                 daily_counts['Missing %'] = (daily_counts['Missing'] / daily_counts['Total']) * 100
-                
-                chart_data = daily_counts[['Matching %', 'Missing %']].reset_index()
+                daily_counts['Update needed %'] = (daily_counts['Update needed'] / daily_counts['Total']) * 100
+
+                chart_data = daily_counts[['Missing %', 'Update needed %', 'Matching %']].reset_index()
                 chart_data['Date_Label'] = chart_data['Business_Date'].dt.strftime('%b %d')
                 chart_data = chart_data.melt(['Business_Date', 'Date_Label'], var_name='Status', value_name='Percentage')
                 
@@ -304,7 +331,7 @@ if trend_files:
                             title='Date', 
                             axis=alt.Axis(labelAngle=0)), 
                     y=alt.Y('Percentage:Q', scale=alt.Scale(domain=[0, 100])),
-                    color=alt.Color('Status', scale=alt.Scale(domain=['Matching %', 'Missing %'], range=['#28a745', '#dc3545'])),
+                    color=alt.Color('Status', scale=alt.Scale(domain=['Missing %', 'Update needed %','Matching %'], range=['#FF7601', '#FCB53B','#00809D'])),
                     tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Status', alt.Tooltip('Percentage', format='.1f')]
                 ).properties(height=350)
                 
