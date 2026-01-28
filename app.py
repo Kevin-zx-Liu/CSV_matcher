@@ -280,6 +280,7 @@ if trend_files:
             
             # 2. Rename dictionary (Handles variations in headers)
             rename_map = {
+                'NEW COMMENT': 'Reason',
                 'New_Comments': 'Reason',
                 'new comments': 'Reason',
                 'New Comments': 'Reason',
@@ -288,6 +289,7 @@ if trend_files:
                 'new_comments'  : 'Reason',
                 'comment'       : 'Match_Status',
                 'Comments': 'Match_Status',
+                'COMMENT': 'Match_Status',
                 'LOT_HOLD_TIME': 'Time'
             }
             df_temp.rename(columns=rename_map, inplace=True)
@@ -380,6 +382,25 @@ if trend_files:
                         reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
 
                         unique_reasons = sorted(reason_counts['Reason'].unique().tolist())
+
+                        # Create a color list that matches the order of 'unique_reasons'
+                        color_range = []
+                        # Palette for non-error items (Blue, Orange, Green, Purple, Brown, Pink, Gray, Yellow, Cyan)
+                        safe_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+                        palette_idx = 0
+                        
+                        for r in unique_reasons:
+                            r_lower = r.lower()
+                            # 1. Check for explicit "Missing"
+                            if r_lower == "missing":
+                                color_range.append('#d62728') # Standard Red
+                            # 2. Check for "Missing in APC..." (contains logic)
+                            elif "missing in apc" in r_lower:
+                                color_range.append('#ff9896') # Lighter Red / Pink
+                            # 3. All other reasons -> Cycle through safe palette
+                            else:
+                                color_range.append(safe_palette[palette_idx % len(safe_palette)])
+                                palette_idx += 1
                         
                         chart2 = alt.Chart(reason_counts).mark_bar().encode(
                             x=alt.X('Date_Label:O', 
@@ -387,7 +408,7 @@ if trend_files:
                                     title='Date', 
                                     axis=alt.Axis(labelAngle=0)),
                             y=alt.Y('Count:Q', title='Count of Missing Items'),
-                            color=alt.Color('Reason', title='Reason', scale=alt.Scale(domain=unique_reasons, scheme='tableau10')),
+                            color=alt.Color('Reason', title='Reason', scale=alt.Scale(domain=unique_reasons, range=color_range)),
                             tooltip=[alt.Tooltip('Date_Label', title='Date'), 'Reason', 'Count']
                         ).properties(height=400)
                         
