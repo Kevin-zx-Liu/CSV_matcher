@@ -265,13 +265,17 @@ trend_files = st.file_uploader("Upload Daily Reports", accept_multiple_files=Tru
 
 if trend_files:
     all_reports = []
+    failed_files = []  # [NEW] Track files that fail to load
     
     # 1. Read and combine files (Robust to Separators)
     for file in trend_files:
         try:
             df_temp = pd.read_csv(file, sep=None, engine='python')
+
+            has_match_col = 'Match_Status' in df_temp.columns
+            has_time_col = ('Time' in df_temp.columns) or ('LOT_HOLD_TIME' in df_temp.columns)
             
-            if 'Match_Status' not in df_temp.columns or 'Time' not in df_temp.columns or 'LOT_HOLD_TIME' not in df_temp.columns:
+            if not has_match_col or not has_time_col:
                 file.seek(0)
                 df_temp = pd.read_csv(file, sep=';')
 
@@ -287,12 +291,20 @@ if trend_files:
                 'new comment'   : 'Reason',
                 'new_comment'   : 'Reason',
                 'new_comments'  : 'Reason',
+                'COMMENT'       : 'Match_Status',
                 'comment'       : 'Match_Status',
                 'Comments': 'Match_Status',
-                'COMMENT': 'Match_Status',
                 'LOT_HOLD_TIME': 'Time'
             }
             df_temp.rename(columns=rename_map, inplace=True)
+            
+            # Check for required columns immediately
+            required_check = ['Match_Status','Time']
+            missing_cols = [c for c in required_check if c not in df_temp.columns]
+            
+            if missing_cols:
+                failed_files.append({'File': file.name, 'Reason': f"Missing columns: {missing_cols}, get columns: {df_temp.columns.tolist()}"})
+                continue  # Skip this file
           
             if 'Match_Status' in df_temp.columns:
                 df_temp['Match_Status'] = df_temp['Match_Status'].astype(str).str.title().str.strip()
@@ -305,14 +317,20 @@ if trend_files:
                 })
             all_reports.append(df_temp)
         except Exception as e:
-            st.error(f"Error reading {file.name}: {e}")
+            # [MODIFIED] Log error to table instead of just printing
+            failed_files.append({'File': file.name, 'Reason': str(e)})
+            
+    # Display the status of skipped files
+    if failed_files:
+        st.warning("⚠️ The following files were skipped:")
+        st.dataframe(pd.DataFrame(failed_files), hide_index=True)
             
     if all_reports:
         full_df = pd.concat(all_reports)
         required_cols = ['Match_Status', 'Time']
         
         if all(col in full_df.columns for col in required_cols):
-            
+              
             # --- DATE PARSING ---
             full_df['DT'] = pd.to_datetime(
                 full_df['Time'], 
