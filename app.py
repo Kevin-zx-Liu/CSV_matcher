@@ -125,15 +125,36 @@ if left_file and right_file:
         # --- GLOBAL MATCHING LOGIC (Applied to whole table) ---
         # =========================================================
         
-        # 1. Standard Normalization
+        # 1. Standard Normalization (LotID)
         df_left['__key'] = df_left['ID'].astype(str).str.upper().str.strip()
         df_right['__key'] = df_right['ID'].astype(str).str.upper().str.strip()
         
-        # 2. Initial Exact Match Check
-        df_left['Found_in_Right'] = df_left['__key'].isin(df_right['__key'])
+        # ---  CHART NAME MATCHING ---
+        # A match is only valid if BOTH the LotID and the Chart Name match.
+        
+        # A. Extract Chart Name from Left 'Info' text
+        # Logic: Find text between "SMCchart" and " - Lot"
+        df_left['__chart_extracted'] = df_left['Info'].astype(str).str.extract(r'SMCchart\s+(.+?)\s+-\s+Lot', expand=False)
+        
+        # Normalize Extracted Chart (Left)
+        # We fill NaNs with empty string so the code doesn't break on rows without this format
+        df_left['__chart_clean'] = df_left['__chart_extracted'].fillna('').str.strip().str.upper()
+        
+        # B. Normalize Target Chart (Right)
+        if 'Chart' in df_right.columns:
+            df_right['__chart_clean'] = df_right['Chart'].astype(str).replace('nan', '').fillna('').str.strip().str.upper()
+        else:
+            df_right['__chart_clean'] = ""
 
-        # 3. --- SPECIAL DOT RULE ---
-        # Identify rows that are currently MISSING and have a DOT in the ID
+        # C. Create Composite Keys (ID + Chart)
+        df_left['__composite_key'] = df_left['__key'] + "|" + df_left['__chart_clean']
+        df_right['__composite_key'] = df_right['__key'] + "|" + df_right['__chart_clean']
+        
+        # 2. Strict Exact Match Check
+        # Now checks if the specific (ID + Chart) combination exists in the Right file
+        df_left['Found_in_Right'] = df_left['__composite_key'].isin(df_right['__composite_key'])
+
+        # 3. --- SPECIAL ChildLot RULE ---
         mask_special = (~df_left['Found_in_Right']) & (df_left['ID'].astype(str).str.contains('.', regex=False))
         
         # Only run this if we have special cases AND the right file has an Eventlist
