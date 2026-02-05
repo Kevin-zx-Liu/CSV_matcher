@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from utils import robust_scan
-from logic import apply_matching_logic, get_export_filename, process_trend_reports, get_reason_colors, get_trend_suffix
+from logic import apply_matching_logic, get_export_filename, process_trend_reports, get_reason_colors, get_trend_suffix, get_apc_performance_data
 
 st.set_page_config(layout="wide", page_title="CSV Matcher")
 st.title("🛡️ APC Validation")
@@ -114,3 +114,33 @@ if trend_files:
                     ).properties(height=400)
                     chart2["usermeta"] = {"embedOptions": {"downloadFileName": f"MissingReasons_trend_{trend_suffix}"}}
                     st.altair_chart(chart2, use_container_width=True)	
+                                    
+            # --- CHART 3: APC PERFORMANCE ---
+            st.divider()
+            st.subheader("3. APC Performance Analysis")
+            st.info("💡 Find percentage of 'Matching but time is more accurate in APC'")
+
+            if 'Reason' in valid_df.columns:
+                perf_data = get_apc_performance_data(valid_df)
+                if not perf_data.empty:
+                    chart3 = alt.Chart(perf_data).mark_bar().encode(
+                        x=alt.X('Date_Label:O', 
+                                sort=alt.EncodingSortField(field="Business_Date", op="min"), 
+								title='Date'),
+						y=alt.Y('Performance %:Q', 
+								scale=alt.Scale(domain=[0, 100]), 
+								title='Accurate Time Percentage (%)'),
+                            tooltip=['Date_Label', alt.Tooltip('Performance %', format='.1f'), 'Total_Matching']
+                        ).properties(height=350)
+                    chart3["usermeta"] = {
+						"embedOptions": {
+							"downloadFileName": f"APC_Performance_{trend_suffix}"
+						}
+					}
+                    st.altair_chart(chart3, use_container_width=True)
+                    with st.expander("View Performance Details"):
+                        st.dataframe(perf_data[['Business_Date', 'Total_Matching', 'Accurate_Time_Count', 'Performance %']], hide_index=True)
+                else:
+                    st.info("No 'Matching' status records found to calculate performance.")
+            else:
+                st.warning("⚠️ No 'Reason' column found to analyze APC performance.")

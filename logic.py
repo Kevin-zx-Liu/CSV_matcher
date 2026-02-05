@@ -113,3 +113,28 @@ def get_reason_colors(unique_reasons):
             color_range.append(safe_palette[palette_idx % len(safe_palette)])
             palette_idx += 1
     return color_range
+
+def get_apc_performance_data(valid_df):
+    # 1. Find all Matching data
+    matching_df = valid_df[valid_df['Match_Status'] == 'Matching'].copy()
+    
+    if matching_df.empty:
+        return pd.DataFrame()
+
+    # 2. Find "more accurate in APC" from Reason
+    target_reason = "Time is more accurate in APC"
+    matching_df['is_accurate_time'] = matching_df['Reason'].astype(str).str.contains(
+        "time is more accurate in APC", case=False, na=False
+    )
+
+    # 3. group by Business_Date and calculate counts for total Matching and accurate time cases
+    perf_stats = matching_df.groupby('Business_Date').agg(
+        Total_Matching=('Match_Status', 'count'),
+        Accurate_Time_Count=('is_accurate_time', 'sum')
+    ).reset_index()
+
+    # 4. calculate performance percentage
+    perf_stats['Performance %'] = (perf_stats['Accurate_Time_Count'] / perf_stats['Total_Matching']) * 100
+    perf_stats['Date_Label'] = perf_stats['Business_Date'].dt.strftime('%b %d')
+    
+    return perf_stats
