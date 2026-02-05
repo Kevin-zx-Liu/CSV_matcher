@@ -6,32 +6,54 @@ from logic import apply_matching_logic, get_export_filename, process_trend_repor
 
 st.set_page_config(layout="wide", page_title="CSV Matcher")
 st.title("🛡️ APC Validation")
-st.markdown("Left File: **Temptation data** | Right File: **APC data**")
+st.markdown("Left File: **Temptation data** | Right Files: **APC data**")
 
 col1, col2 = st.columns(2)
 with col1:
     left_file = st.file_uploader("Upload Left CSV (Hold Data)", type="csv")
 with col2:
-    right_file = st.file_uploader("Upload Right CSV (Process Data)", type="csv")
+    # MODIFIED: Added accept_multiple_files=True
+    right_files = st.file_uploader("Upload Right CSV (Process Data)", type="csv", accept_multiple_files=True)
 
-if left_file and right_file:
+if left_file and right_files:
     left_targets = {'ID': ['LOT_ID', 'LOTID'], 'Time': ['LOT_HOLD_TIME', 'TIME'], 'Info': ['LOT_HOLD_COMMENT']}
     right_targets = {
         'ID': ['LOTID', 'LOT_ID', 'BATCHID'], 'Chart': ['CHARTNAME', 'CHART'],
         'Time': ['DATETIME', 'TIME'], 'Equipment': ['EQPNAME', 'EQUIPMENT'], 'Eventlist': ['EVENTLIST', 'EVENT_LIST']
     }
 
+    # 1. Scan Left File
     df_left, err_l = robust_scan(left_file, "Left", left_targets)
-    df_right, err_r = robust_scan(right_file, "Right", right_targets)
+    
+    # 2. Scan and Combine Right Files
+    all_right_dfs = []
+    right_errors = []
+    
+    for f in right_files:
+        df_r, err_r = robust_scan(f, f.name, right_targets)
+        if df_r is not None:
+            all_right_dfs.append(df_r)
+        else:
+            right_errors.append(err_r)
 
+    # Error Handling for scanning
     if df_left is None:
         st.error(f"❌ Left File Error: {err_l}")
-    elif df_right is None:
-        st.error(f"❌ Right File Error: {err_r}")
+    elif right_errors:
+        for err in right_errors:
+            st.error(f"❌ Right File Error: {err}")
+    elif not all_right_dfs:
+        st.error("❌ No valid data could be extracted from the uploaded Right files.")
     else:
-        st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} rows (Right)")
+        # CONCATENATION: Treat all Right files as one
+        df_right = pd.concat(all_right_dfs, ignore_index=True)
+        
+        st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} total rows (Right)")
+        
+        # Matching logic remains the same
         df_left, df_right = apply_matching_logic(df_left, df_right)
 
+        # --- INTERFACE ---
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("1. Temptation Data")
@@ -43,18 +65,26 @@ if left_file and right_file:
                 column_config={"Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True), "Time": "Lothold Time"})
 
         with c2:
-            st.subheader("2. APC Data")
+            st.subheader("2. APC Data (Combined)")
             if selection.selection["rows"]:
                 idx = selection.selection["rows"][0]
                 sel_key, sel_display = df_left.iloc[idx]['__key'], df_left.iloc[idx]['ID']
-                st.info(f"Searching Process Data for: **{sel_display}**")
-                match = df_right[df_right['Eventlist'].astype(str).str.contains(sel_display, case=False, regex=False)] if '.' in sel_display and 'Eventlist' in df_right.columns else df_right[df_right['__key'] == sel_key]
+                st.info(f"Searching Combined Process Data for: **{sel_display}**")
+                
+                # Logic now searches within the concatenated df_right
+                if '.' in sel_display and 'Eventlist' in df_right.columns:
+                    match = df_right[df_right['Eventlist'].astype(str).str.contains(sel_display, case=False, regex=False)]
+                else:
+                    match = df_right[df_right['__key'] == sel_key]
+                
                 if not match.empty:
                     cols_to_show = ['ID', 'Chart', 'Time', 'Equipment']
                     if 'Eventlist' in match.columns and '.' in sel_display: cols_to_show.append('Eventlist')
                     st.dataframe(match[[c for c in cols_to_show if c in match.columns]], width='stretch', hide_index=True)
-                else: st.warning("❌ No record found in Right file.")
+                else:
+                    st.warning("❌ No record found in any uploaded Right file.")
 
+# --- 3. Consolidation & Trending ---
 st.divider()
 st.header("📊 3. Trend Consolidation")
 trend_files = st.file_uploader("Upload Daily Reports", accept_multiple_files=True, type="csv", key="trend_uploader")
