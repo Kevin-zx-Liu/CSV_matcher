@@ -12,7 +12,7 @@ col1, col2 = st.columns(2)
 with col1:
     left_file = st.file_uploader("Upload Left CSV (Hold Data)", type="csv")
 with col2:
-    # MODIFIED: Added accept_multiple_files=True
+    # Accept multiple files for the right side 
     right_files = st.file_uploader("Upload Right CSV (Process Data)", type="csv", accept_multiple_files=True)
 
 if left_file and right_files:
@@ -59,11 +59,32 @@ if left_file and right_files:
             st.subheader("1. Temptation Data")
             df_export = df_left.copy()
             df_export['Match_Status'] = df_export['Found_in_Right'].apply(lambda x: "Matching" if x else "Missing")
+            
             export_filename = get_export_filename(df_export)
-            st.download_button(label=f"📥 Export Report ({export_filename})", data=df_export[['Match_Status', 'ID', 'Time', 'Info']].to_csv(index=False).encode('utf-8'), file_name=export_filename, mime="text/csv")
-            selection = st.dataframe(df_left[['Found_in_Right','ID','Time', 'Info']], on_select="rerun", selection_mode="single-row", width=1000, hide_index=True,
-                column_config={"Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True), "Time": "Lothold Time"})
+            
+            # Added CHARTNAME and EQUIP to the export columns
+            export_cols = ['Match_Status', 'ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
+            
+            st.download_button(
+                label=f"📥 Export Report ({export_filename})", 
+                data=df_export[export_cols].to_csv(index=False).encode('utf-8'), 
+                file_name=export_filename, 
+                mime="text/csv"
+            )
 
+            # Update the UI table to show new columns as well
+            display_cols = ['Found_in_Right', 'ID', 'Time', 'CHARTNAME', 'EQUIP']
+            selection = st.dataframe(
+                df_left[display_cols], 
+                on_select="rerun", 
+                selection_mode="single-row", 
+                width=1000, 
+                hide_index=True,
+                column_config={
+                    "Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True), 
+                    "Time": "Lothold Time"
+                }
+            )
         with c2:
             st.subheader("2. APC Data (Combined)")
             if selection.selection["rows"]:
