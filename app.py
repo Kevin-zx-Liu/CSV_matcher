@@ -45,10 +45,10 @@ if left_file and right_files:
     elif not all_right_dfs:
         st.error("❌ No valid data could be extracted from the uploaded Right files.")
     else:
-        # CONCATENATION: Treat all Right files as one
-        df_right = pd.concat(all_right_dfs, ignore_index=True)
+        # CONCATENATION: Treat all Right files as one, avoid duplicates
+        df_right = pd.concat(all_right_dfs, ignore_index=True).drop_duplicates()
         
-        st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} total rows (Right)")
+        st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} unique rows (Right)")
         
         # Matching logic remains the same
         df_left, df_right = apply_matching_logic(df_left, df_right)
