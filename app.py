@@ -57,6 +57,13 @@ if left_file and right_files:
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("1. Temptation Data")
+            # Extract unique CHARTNAMEs, drop empty values, and format as "A","B","C"
+            if 'CHARTNAME' in df_left.columns:
+                unique_charts = sorted(df_left['CHARTNAME'].dropna().unique())
+                formatted_list = ", ".join([f'"{chart}"' for chart in unique_charts])
+                
+                with st.expander("📋 View Chart Name List (String Format)"):
+                    st.code(formatted_list, language="text")
             df_export = df_left.copy()
             df_export['Match_Status'] = df_export['Found_in_Right'].apply(lambda x: "Matching" if x else "Missing")
             
@@ -169,7 +176,7 @@ if trend_files:
             # --- CHART 3: APC PERFORMANCE ---
             st.divider()
             st.subheader("3. APC Performance Analysis")
-            st.info("💡 Find percentage of 'Matching but time is more accurate in APC'")
+            st.info("Percentage of 'Time is more accurate in APC'")
 
             if 'Reason' in valid_df.columns:
                 perf_data = get_apc_performance_data(valid_df)

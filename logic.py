@@ -8,7 +8,7 @@ def apply_matching_logic(df_left, df_right):
     """
     # 1. Extraction from 'Info' column
     # Rule: CHARTNAME is between 'SMCchart' and '- Lot'
-    df_left['CHARTNAME'] = df_left['Info'].astype(str).str.extract(r'SMCchart\s+(.+?)\s+-\s+Lot', expand=False)
+    df_left['CHARTNAME'] = df_left['Info'].astype(str).str.extract(r'SMCchart\s+(.+?)\s+-\s+Lot', expand=False).str.lower()
     
     # Rule: EQUIP is after 'Equipment', format 'Name#Digits', ignoring trailing letters
     # Example: 'Equipment Omega#11C' -> 'Omega#11'
