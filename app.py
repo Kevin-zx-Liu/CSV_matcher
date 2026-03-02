@@ -227,7 +227,7 @@ if trend_files:
             st.header("📋 4. Weekly Report & Trend Analysis")
             
             # Create a 2-column layout for the Weekly section
-            wk_col1, wk_col2 = st.columns(2)
+            wk_col1, wk_col2 = st.columns([1,3])
 
             with wk_col1:
                 st.subheader("Current Week Summary")
@@ -275,16 +275,14 @@ if trend_files:
                     x=alt.X('Category:N', title=None),
                     y=alt.Y('Matching Rate:Q', scale=alt.Scale(domain=[0, 100]), title='Matching %'),
                     tooltip=[alt.Tooltip('Matching Rate', format='.1f')]
-                ).properties(height=300, width=150)
+                ).properties(height=300)
                 
-                st.altair_chart(curr_bar + curr_bar.mark_text(dy=-5, fontWeight='bold').encode(text=alt.Text('Matching Rate:Q', format='.1f')), use_container_width=False)
+                st.altair_chart(curr_bar + curr_bar.mark_text(dy=-5, fontWeight='bold').encode(text=alt.Text('Matching Rate:Q', format='.1f')), use_container_width=True)
 
             with wk_col2:
-                st.subheader("Weekly Historical Trend")
-                st.write("Upload multiple 'weekly_summary' files to see the trend.")
-                
+                st.subheader("Weekly Historical Trend")                
                 # 3. Reading in exported weekly summary files
-                weekly_trend_files = st.file_uploader("Upload Weekly Summaries", accept_multiple_files=True, type="csv", key="wk_trend_uploader")
+                weekly_trend_files = st.file_uploader("Upload Weekly Summaries to get weekly trend", accept_multiple_files=True, type="csv", key="wk_trend_uploader")
                 
                 if weekly_trend_files:
                     all_wk_data = []
