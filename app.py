@@ -222,78 +222,98 @@ if trend_files:
             else:
                 st.warning("⚠️ No 'Reason' column found to analyze APC performance.")
             
-            # --- 4. Weekly Report Section ---
+            # --- 4. Weekly Report & Trend Section ---
             st.divider()
-            st.header("📋 4. Weekly Report")
-            st.write("Summary based on all uploaded daily reports.")
+            st.header("📋 4. Weekly Report & Trend Analysis")
             
-            # 1. Calculation logic
-            total_cases = len(full_df)
-            # Count statuses directly from the concatenated dataframe
-            status_counts = full_df['Match_Status'].value_counts()
-            
-            # Get individual counts (default to 0 if status doesn't exist)
-            m_count = status_counts.get('Matching', 0)
-            u_count = status_counts.get('Update needed', 0)
-            ms_count = status_counts.get('Missing', 0)
-            
-            # Calculate rates
-            m_rate = (m_count / total_cases * 100) if total_cases > 0 else 0
-            u_rate = (u_count / total_cases * 100) if total_cases > 0 else 0
-            ms_rate = (ms_count / total_cases * 100) if total_cases > 0 else 0
-            
-            # Generate date range label for the "Time" column (e.g., 0203-0207)
-            try:
-                start_label = valid_df['Business_Date'].min().strftime('%m%d')
-                end_label = valid_df['Business_Date'].max().strftime('%m%d')
-                date_range_label = f"{start_label}-{end_label}"
-            except:
-                date_range_label = "Overall"
+            # Create a 2-column layout for the Weekly section
+            wk_col1, wk_col2 = st.columns(2)
 
-            # 2. Create Summary DataFrame for Export (Matching the requested image format)
-            summary_df = pd.DataFrame({
-                'Time': [date_range_label, date_range_label, date_range_label],
-                'Match_Status': ['Matching', 'Update needed', 'Missing'],
-                'Percentage': [round(m_rate, 1), round(u_rate, 1), round(ms_rate, 1)],
-                'Count': [m_count, u_count, ms_count]
-            })
-            
-            st.write(f"Calculated summary for period: **{date_range_label}**")
-            
-            # Export button for the weekly summary
-            st.download_button(
-                label="📥 Export Weekly Summary (CSV)",
-                data=summary_df.to_csv(index=False).encode('utf-8'),
-                file_name=f"weekly_summary_{date_range_label}.csv",
-                mime="text/csv",
-                help="Download overall summary with status, percentage, and counts."
-            )
-            
-            # 3. Interface Display: Single Bar Chart for Overall Matching
-            st.subheader("Overall Matching Percentage")
-            
-            # Prepare data for the bar chart
-            chart_data_overall = pd.DataFrame({
-                'Category': ['Weekly Overall'],
-                'Matching Rate': [m_rate]
-            })
-            
-            # Build the bar chart
-            overall_bar = alt.Chart(chart_data_overall).mark_bar(size=80, color='#00809D').encode(
-                x=alt.X('Category:N', title=None),
-                y=alt.Y('Matching Rate:Q', scale=alt.Scale(domain=[0, 100]), title='Percentage (%)'),
-                tooltip=[alt.Tooltip('Matching Rate', format='.1f', title='Matching %')]
-            ).properties(height=350, width=200)
-            
-            # Add text label on top of the bar
-            text_label = overall_bar.mark_text(
-                align='center',
-                baseline='bottom',
-                dy=-5,
-                fontSize=14,
-                fontWeight='bold'
-            ).encode(
-                text=alt.Text('Matching Rate:Q', format='.1f')
-            )
+            with wk_col1:
+                st.subheader("Current Week Summary")
+                st.write("Overall summary based on current uploaded daily reports.")
+                
+                # 1. Calculation logic (Same as before)
+                total_cases = len(full_df)
+                status_counts = full_df['Match_Status'].value_counts()
+                
+                m_count = status_counts.get('Matching', 0)
+                u_count = status_counts.get('Update needed', 0)
+                ms_count = status_counts.get('Missing', 0)
+                
+                m_rate = (m_count / total_cases * 100) if total_cases > 0 else 0
+                u_rate = (u_count / total_cases * 100) if total_cases > 0 else 0
+                ms_rate = (ms_count / total_cases * 100) if total_cases > 0 else 0
+                
+                try:
+                    start_label = valid_df['Business_Date'].min().strftime('%m%d')
+                    end_label = valid_df['Business_Date'].max().strftime('%m%d')
+                    date_range_label = f"{start_label}-{end_label}"
+                except:
+                    date_range_label = "Overall"
 
-            st.altair_chart(overall_bar + text_label, use_container_width=False)
+                # 2. Create Summary DataFrame for Export
+                summary_df = pd.DataFrame({
+                    'Time': [date_range_label, date_range_label, date_range_label],
+                    'Match_Status': ['Matching', 'Update needed', 'Missing'],
+                    'Percentage': [round(m_rate, 1), round(u_rate, 1), round(ms_rate, 1)],
+                    'Count': [m_count, u_count, ms_count]
+                })
+                
+                st.info(f"Period: **{date_range_label}** | Total Cases: **{total_cases}**")
+                
+                st.download_button(
+                    label="📥 Export Weekly Summary (CSV)",
+                    data=summary_df.to_csv(index=False).encode('utf-8'),
+                    file_name=f"weekly_summary_{date_range_label}.csv",
+                    mime="text/csv"
+                )
+                
+                # Single Bar Chart for current week
+                chart_data_curr = pd.DataFrame({'Category': ['Current Week'], 'Matching Rate': [m_rate]})
+                curr_bar = alt.Chart(chart_data_curr).mark_bar(size=60, color='#00809D').encode(
+                    x=alt.X('Category:N', title=None),
+                    y=alt.Y('Matching Rate:Q', scale=alt.Scale(domain=[0, 100]), title='Matching %'),
+                    tooltip=[alt.Tooltip('Matching Rate', format='.1f')]
+                ).properties(height=300, width=150)
+                
+                st.altair_chart(curr_bar + curr_bar.mark_text(dy=-5, fontWeight='bold').encode(text=alt.Text('Matching Rate:Q', format='.1f')), use_container_width=False)
+
+            with wk_col2:
+                st.subheader("Weekly Historical Trend")
+                st.write("Upload multiple 'weekly_summary' files to see the trend.")
+                
+                # 3. Reading in exported weekly summary files
+                weekly_trend_files = st.file_uploader("Upload Weekly Summaries", accept_multiple_files=True, type="csv", key="wk_trend_uploader")
+                
+                if weekly_trend_files:
+                    all_wk_data = []
+                    for f in weekly_trend_files:
+                        try:
+                            df_wk = pd.read_csv(f)
+                            # Ensure required columns exist
+                            if all(col in df_wk.columns for col in ['Time', 'Match_Status', 'Percentage']):
+                                all_wk_data.append(df_wk)
+                        except Exception as e:
+                            st.error(f"Error loading {f.name}: {e}")
+                    
+                    if all_wk_data:
+                        combined_wk_df = pd.concat(all_wk_data, ignore_index=True)
+                        
+                        # Create the Weekly Trend Chart (Similar to Daily Trend)
+                        # We treat 'Time' as an ordinal category since it's a string range (e.g. 0203-0207)
+                        wk_trend_chart = alt.Chart(combined_wk_df).mark_bar().encode(
+                            x=alt.X('Time:O', title='Week Range', sort=None), 
+                            y=alt.Y('Percentage:Q', scale=alt.Scale(domain=[0, 100]), title='Percentage (%)'),
+                            color=alt.Color('Match_Status:N', 
+                                           scale=alt.Scale(domain=['Missing', 'Update needed', 'Matching'], 
+                                                         range=['#FF7601', '#FCB53B', '#00809D']),
+                                           title='Status'),
+                            tooltip=['Time', 'Match_Status', alt.Tooltip('Percentage', format='.1f'), 'Count']
+                        ).properties(height=350)
+
+                        st.altair_chart(wk_trend_chart, use_container_width=True)
+                    else:
+                        st.info("Upload valid weekly summary CSVs to generate the trend chart.")
+                else:
+                    st.info("👈 Upload previously exported weekly files here.")
