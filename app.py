@@ -158,27 +158,42 @@ if trend_files:
                 st.divider()
                 st.subheader("2. Missing Reasons Analysis")
                 missing_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update needed'])].copy()
+                # Identify all possible dates across the entire dataset to show empty columns^M
+                all_dates = sorted(valid_df['Business_Date'].unique())
                 if not missing_df.empty:
+                    # Clean and normalize Reasons
                     missing_df['Reason'] = missing_df['Reason'].fillna("Unknown").astype(str).str.strip().str.capitalize().replace({'Nan': 'Unknown', 'None': 'Unknown', '': 'Unknown'})
-                    reason_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
-                    reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
-                    unique_reasons = sorted(reason_counts['Reason'].unique().tolist())
-                    
-                    chart2 = alt.Chart(reason_counts).mark_bar().encode(
-                        x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", op="min"), title='Date', axis=alt.Axis(labelAngle=0)),
-                        y=alt.Y('Count:Q'),
-                        color=alt.Color('Reason', title='Reason', scale=alt.Scale(domain=unique_reasons, range=get_reason_colors(unique_reasons))), 
-                        tooltip=['Date_Label', 'Reason', 'Count']
-                    ).properties(height=400)
-                    chart2["usermeta"] = {"embedOptions": {"downloadFileName": f"MissingReasons_trend_{trend_suffix}"}}
-                    st.altair_chart(chart2, use_container_width=True)	
-                                    
-            # --- CHART 3: APC PERFORMANCE ---
-            st.divider()
-            st.subheader("3. APC Performance Analysis")
-            st.info("Percentage of 'Time is more accurate in APC'")
+                    unique_reasons = sorted(missing_df['Reason'].unique().tolist())
+                else:
+                    unique_reasons = ["No Missing Items"]
 
+                # Create a complete grid of Date x Reason using MultiIndex
+                full_index = pd.MultiIndex.from_product([all_dates, unique_reasons], names=['Business_Date', 'Reason'])
+                reason_counts = pd.DataFrame(index=full_index).reset_index()
+
+                # Merge with actual counts if they exist
+                if not missing_df.empty:
+                    actual_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
+                    reason_counts = pd.merge(reason_counts, actual_counts, on=['Business_Date', 'Reason'], how='left')
+                
+                reason_counts['Count'] = reason_counts['Count'].fillna(0)
+                reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
+                
+                # Generate chart with restored red/pink color logic from logic.py
+                chart2 = alt.Chart(reason_counts).mark_bar().encode(
+                    x=alt.X('Date_Label:O', sort=alt.EncodingSortField(field="Business_Date", op="min"), title='Date', axis=alt.Axis(labelAngle=0)),
+                    y=alt.Y('Count:Q'),
+                    color=alt.Color('Reason', title='Reason', scale=alt.Scale(domain=unique_reasons, range=get_reason_colors(unique_reasons))), 
+                    tooltip=['Date_Label', 'Reason', 'Count']
+                ).properties(height=400)
+                
+                chart2["usermeta"] = {"embedOptions": {"downloadFileName": f"MissingReasons_trend_{trend_suffix}"}}
+                st.altair_chart(chart2, use_container_width=True)
+            # --- CHART 3: APC PERFORMANCE ---
             if 'Reason' in valid_df.columns:
+                st.divider()
+                st.subheader("3. APC Performance Analysis")
+                st.info("Percentage of 'Time is more accurate in APC'")
                 perf_data = get_apc_performance_data(valid_df)
                 if not perf_data.empty:
                     chart3 = alt.Chart(perf_data).mark_bar().encode(
