@@ -158,7 +158,7 @@ if trend_files:
                 st.divider()
                 st.subheader("2. Missing Reasons Analysis")
                 missing_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update needed'])].copy()
-                # Identify all possible dates across the entire dataset to show empty columns^M
+                # Identify all possible dates across the entire dataset to show empty columns
                 all_dates = sorted(valid_df['Business_Date'].unique())
                 if not missing_df.empty:
                     # Clean and normalize Reasons
@@ -171,11 +171,15 @@ if trend_files:
                 full_index = pd.MultiIndex.from_product([all_dates, unique_reasons], names=['Business_Date', 'Reason'])
                 reason_counts = pd.DataFrame(index=full_index).reset_index()
 
-                # Merge with actual counts if they exist
+                # Merge with actual counts if they exist; otherwise initialize 'Count' to 0
                 if not missing_df.empty:
                     actual_counts = missing_df.groupby(['Business_Date', 'Reason']).size().reset_index(name='Count')
                     reason_counts = pd.merge(reason_counts, actual_counts, on=['Business_Date', 'Reason'], how='left')
+                else:
+                    # Fix for KeyError: 'Count' when no data is missing
+                    reason_counts['Count'] = 0
                 
+                # Safely fill missing combinations (or existing 0s)
                 reason_counts['Count'] = reason_counts['Count'].fillna(0)
                 reason_counts['Date_Label'] = reason_counts['Business_Date'].dt.strftime('%b %d')
                 
