@@ -1,26 +1,29 @@
 import pandas as pd
 import streamlit as st
+# logic.py
 
-def apply_matching_logic(df_left, df_right):
+def extract_metadata(df_left):
     """
-    Performs LotID and Chart Name matching, including special ChildLot rules.
-    Also extracts CHARTNAME and EQUIP for reporting.
+    Extracts CHARTNAME and EQUIP from the 'Info' column immediately.
     """
-    # 1. Extraction from 'Info' column
     # Rule: CHARTNAME is between 'SMCchart' and '- Lot'
     df_left['CHARTNAME'] = df_left['Info'].astype(str).str.extract(r'SMCchart\s+(.+?)\s+-\s+Lot', expand=False).str.lower()
     
-    # Rule: EQUIP is after 'Equipment', format 'Name#Digits', ignoring trailing letters
-    # Example: 'Equipment Omega#11C' -> 'Omega#11'
+    # Rule: EQUIP is after 'Equipment', format 'Name#Digits'
     df_left['EQUIP'] = df_left['Info'].astype(str).str.extract(r'Equipment\s+([A-Za-z0-9]+#\d+)', expand=False)
-
-    # 2. Standard Normalization (LotID)
-    df_left['__key'] = df_left['ID'].astype(str).str.upper().str.strip()
-    df_right['__key'] = df_right['ID'].astype(str).str.upper().str.strip()
     
-    # --- CHART NAME MATCHING ---
-    # We use the extracted CHARTNAME for matching logic as well
+    # Normalize ID for matching later
+    df_left['__key'] = df_left['ID'].astype(str).str.upper().str.strip()
     df_left['__chart_clean'] = df_left['CHARTNAME'].fillna('').str.strip().str.upper()
+    
+    return df_left
+
+def apply_matching_logic(df_left, df_right):
+    """
+    Performs LotID and Chart Name matching once Right data is available.
+    """
+    # 1. Standard Normalization (Right side only now, Left is done in extract_metadata)
+    df_right['__key'] = df_right['ID'].astype(str).str.upper().str.strip()
     
     if 'Chart' in df_right.columns:
         df_right['__chart_clean'] = df_right['Chart'].astype(str).replace('nan', '').fillna('').str.strip().str.upper()
@@ -31,10 +34,10 @@ def apply_matching_logic(df_left, df_right):
     df_left['__composite_key'] = df_left['__key'] + "|" + df_left['__chart_clean']
     df_right['__composite_key'] = df_right['__key'] + "|" + df_right['__chart_clean']
     
-    # 3. Strict Exact Match Check
+    # 2. Strict Exact Match Check
     df_left['Found_in_Right'] = df_left['__composite_key'].isin(df_right['__composite_key'])
 
-    # 4. --- SPECIAL ChildLot RULE ---
+    # 3. --- SPECIAL ChildLot RULE ---
     mask_special = (~df_left['Found_in_Right']) & (df_left['ID'].astype(str).str.contains('.', regex=False))
     
     if mask_special.any() and 'Eventlist' in df_right.columns:

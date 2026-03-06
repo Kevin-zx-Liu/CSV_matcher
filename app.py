@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from utils import robust_scan
-from logic import apply_matching_logic, get_export_filename, process_trend_reports, get_reason_colors, get_trend_suffix, get_apc_performance_data
+from logic import extract_metadata, apply_matching_logic, get_export_filename, process_trend_reports, get_reason_colors, get_trend_suffix, get_apc_performance_data
 
 st.set_page_config(layout="wide", page_title="CSV Matcher")
 st.title("🛡️ APC Validation")
@@ -12,65 +12,68 @@ col1, col2 = st.columns(2)
 with col1:
     left_file = st.file_uploader("Upload Left CSV (Hold Data)", type="csv")
 with col2:
-    # Accept multiple files for the right side 
     right_files = st.file_uploader("Upload Right CSV (Process Data)", type="csv", accept_multiple_files=True)
 
-if left_file and right_files:
-    left_targets = {'ID': ['LOT_ID', 'LOTID'], 'Time': ['LOT_HOLD_TIME', 'TIME'], 'Info': ['LOT_HOLD_COMMENT']}
-    right_targets = {
-        'ID': ['LOTID', 'LOT_ID', 'BATCHID'], 'Chart': ['CHARTNAME', 'CHART'],
-        'Time': ['DATETIME', 'TIME'], 'Equipment': ['EQPNAME', 'EQUIPMENT'], 'Eventlist': ['EVENTLIST', 'EVENT_LIST']
-    }
+# Define target columns for scanning
+left_targets = {'ID': ['LOT_ID', 'LOTID'], 'Time': ['LOT_HOLD_TIME', 'TIME'], 'Info': ['LOT_HOLD_COMMENT']}
+right_targets = {
+    'ID': ['LOTID', 'LOT_ID', 'BATCHID'], 'Chart': ['CHARTNAME', 'CHART'],
+    'Time': ['DATETIME', 'TIME'], 'Equipment': ['EQPNAME', 'EQUIPMENT'], 'Eventlist': ['EVENTLIST', 'EVENT_LIST']
+}
 
-    # 1. Scan Left File
+# --- 1. Scan Left File ---
+if left_file:
     df_left, err_l = robust_scan(left_file, "Left", left_targets)
     
-    # 2. Scan and Combine Right Files
-    all_right_dfs = []
-    right_errors = []
-    
-    for f in right_files:
-        df_r, err_r = robust_scan(f, f.name, right_targets)
-        if df_r is not None:
-            all_right_dfs.append(df_r)
-        else:
-            right_errors.append(err_r)
+    if df_left is not None:
+        df_left = extract_metadata(df_left)
+        # Initialize default columns if matching hasn't happened yet
+        if 'Found_in_Right' not in df_left.columns:
+            df_left['Found_in_Right'] = False
+        if 'CHARTNAME' not in df_left.columns:
+            df_left['CHARTNAME'] = ""
+        if 'EQUIP' not in df_left.columns:
+            df_left['EQUIP'] = ""
+        # Create a key for the selection logic even if empty
+        df_left['__key'] = df_left['ID'].astype(str).str.upper().str.strip()
 
-    # Error Handling for scanning
-    if df_left is None:
-        st.error(f"❌ Left File Error: {err_l}")
-    elif right_errors:
-        for err in right_errors:
-            st.error(f"❌ Right File Error: {err}")
-    elif not all_right_dfs:
-        st.error("❌ No valid data could be extracted from the uploaded Right files.")
-    else:
-        # CONCATENATION: Treat all Right files as one, avoid duplicates
-        df_right = pd.concat(all_right_dfs, ignore_index=True).drop_duplicates()
-        
-        st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} unique rows (Right)")
-        
-        # Matching logic remains the same
-        df_left, df_right = apply_matching_logic(df_left, df_right)
+        # --- 2. Process Right Files (If they exist) ---
+        df_right = None
+        if right_files:
+            all_right_dfs = []
+            right_errors = []
+            for f in right_files:
+                df_r, err_r = robust_scan(f, f.name, right_targets)
+                if df_r is not None:
+                    all_right_dfs.append(df_r)
+                else:
+                    right_errors.append(err_r)
 
-        # --- INTERFACE ---
+            if right_errors:
+                for err in right_errors: st.error(f"❌ Right File Error: {err}")
+            elif all_right_dfs:
+                df_right = pd.concat(all_right_dfs, ignore_index=True).drop_duplicates()
+                # Run the actual matching logic once both sides exist
+                df_left, df_right = apply_matching_logic(df_left, df_right)
+                st.success(f"✅ Loaded: {len(df_left)} rows (Left) vs {len(df_right)} unique rows (Right)")
+
+        # --- 3. Interface Display (Always shows if Left exists) ---
         c1, c2 = st.columns([1, 1])
         with c1:
             st.subheader("1. Temptation Data")
-            # Extract unique CHARTNAMEs, drop empty values, and format as "A","B","C"
-            if 'CHARTNAME' in df_left.columns:
+            
+            # Show Chart List code block if available
+            if 'CHARTNAME' in df_left.columns and not df_left['CHARTNAME'].replace('', pd.NA).dropna().empty:
                 unique_charts = sorted(df_left['CHARTNAME'].dropna().unique())
                 formatted_list = ", ".join([f'"{chart}"' for chart in unique_charts])
-                
                 with st.expander("📋 View Chart Name List (String Format)"):
                     st.code(formatted_list, language="text")
+
+            # Export Button
             df_export = df_left.copy()
             df_export['Match_Status'] = df_export['Found_in_Right'].apply(lambda x: "Matching" if x else "Missing")
-            
             export_filename = get_export_filename(df_export)
-            
-            # Added CHARTNAME and EQUIP to the export columns
-            export_cols = ['Match_Status', 'ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
+            export_cols = [c for c in ['Match_Status', 'ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info'] if c in df_export.columns]
             
             st.download_button(
                 label=f"📥 Export Report ({export_filename})", 
@@ -79,10 +82,10 @@ if left_file and right_files:
                 mime="text/csv"
             )
 
-            # Update the UI table to show new columns as well
+            # Dataframe Selection
             display_cols = ['Found_in_Right', 'ID', 'Time', 'CHARTNAME', 'EQUIP']
             selection = st.dataframe(
-                df_left[display_cols], 
+                df_left[[c for c in display_cols if c in df_left.columns]], 
                 on_select="rerun", 
                 selection_mode="single-row", 
                 width=1000, 
@@ -92,14 +95,15 @@ if left_file and right_files:
                     "Time": "Lothold Time"
                 }
             )
+
         with c2:
             st.subheader("2. APC Data (Combined)")
-            if selection.selection["rows"]:
+            if df_right is not None and selection.selection["rows"]:
                 idx = selection.selection["rows"][0]
                 sel_key, sel_display = df_left.iloc[idx]['__key'], df_left.iloc[idx]['ID']
                 st.info(f"Searching Combined Process Data for: **{sel_display}**")
                 
-                # Logic now searches within the concatenated df_right
+                # Search logic
                 if '.' in sel_display and 'Eventlist' in df_right.columns:
                     match = df_right[df_right['Eventlist'].astype(str).str.contains(sel_display, case=False, regex=False)]
                 else:
@@ -111,6 +115,10 @@ if left_file and right_files:
                     st.dataframe(match[[c for c in cols_to_show if c in match.columns]], width='stretch', hide_index=True)
                 else:
                     st.warning("❌ No record found in any uploaded Right file.")
+            elif df_right is None:
+                st.info("Upload Right CSV files to see matching records.")
+    else:
+        st.error(f"❌ Left File Error: {err_l}")
 
 # --- 3. Consolidation & Trending ---
 st.divider()
@@ -297,7 +305,7 @@ if trend_files:
                     
                     if all_wk_data:
                         combined_wk_df = pd.concat(all_wk_data, ignore_index=True)
-                        
+                        combined_wk_df = combined_wk_df.sort_values('Time', ascending=True)
                         # Create the Weekly Trend Chart (Similar to Daily Trend)
                         # We treat 'Time' as an ordinal category since it's a string range (e.g. 0203-0207)
                         wk_trend_chart = alt.Chart(combined_wk_df).mark_bar().encode(
@@ -309,7 +317,7 @@ if trend_files:
                                            title='Status'),
                             tooltip=['Time', 'Match_Status', alt.Tooltip('Percentage', format='.1f'), 'Count']
                         ).properties(height=350)
-
+                        wk_trend_chart["usermeta"] = {"embedOptions": {"downloadFileName": f"Weekly_trend"}}
                         st.altair_chart(wk_trend_chart, use_container_width=True)
                     else:
                         st.info("Upload valid weekly summary CSVs to generate the trend chart.")
