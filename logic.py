@@ -118,7 +118,7 @@ def get_trend_suffix(valid_df):
 def get_reason_colors(unique_reasons):
     """Generates the specific color mapping for missing reasons."""
     color_range = []
-    safe_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    safe_palette = ['#2ca02c', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     palette_idx = 0
     
     for r in unique_reasons:
@@ -127,6 +127,10 @@ def get_reason_colors(unique_reasons):
             color_range.append('#d62728') 
         elif "missing in apc but present in trend" in r_lower:
             color_range.append('#ff9896') 
+        elif "chart status not correct" in r_lower:
+            color_range.append('#1f77b4')
+        elif "missing due to a virtual parameter" in r_lower:
+            color_range.append('#ff7f0e')
         else:
             color_range.append(safe_palette[palette_idx % len(safe_palette)])
             palette_idx += 1
