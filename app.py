@@ -249,7 +249,7 @@ if trend_files:
 
                 with filter_col2:
                     # 2. Chart Name Filter
-                    available_charts = sorted(valid_df['CHARTNAME'].fillna("Unknown").unique())
+                    available_charts = sorted(valid_df['CHARTNAME'].fillna("Unknown").str.lower().unique())
                     selected_charts = st.multiselect(
                         "Filter by Chart Name (Leave empty to show all):", 
                         options=available_charts
@@ -262,9 +262,10 @@ if trend_files:
                     filtered_display_df = filtered_display_df[filtered_display_df['Match_Status'].isin(selected_statuses)]
                     
                 if selected_charts:
+                    # We convert the column to uppercase and check against our selected options
                     filtered_display_df = filtered_display_df[
-                        filtered_display_df['CHARTNAME'].fillna("Unknown").isin(selected_charts)
-                    ]
+                            filtered_display_df['CHARTNAME'].fillna("Unknown").str.lower().isin(selected_charts)
+                        ]
 
                 # --- Export and Table Display ---
                 if not filtered_display_df.empty:
