@@ -229,7 +229,38 @@ if trend_files:
                     st.info("No 'Matching' status records found to calculate performance.")
             else:
                 st.warning("⚠️ No 'Reason' column found to analyze APC performance.")
+            # --- Chart 4: Missing & Update Needed Data Table ---
+            st.divider()
+            st.subheader("📋 4. Detailed Missing/Update Needed Records")
             
+            # Filter for non-matching records
+            missing_data_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update needed'])].copy()
+            
+            if not missing_data_df.empty:
+                # Prepare clean date range for filename
+                start_dt = valid_df['Business_Date'].min().strftime('%Y-%m-%d')
+                end_dt = valid_df['Business_Date'].max().strftime('%Y-%m-%d')
+                missing_export_filename = f"Missing data {start_dt} - {end_dt}.csv"
+
+                # Layout for Download Button and Table
+                st.write(f"Found {len(missing_data_df)} records requiring attention.")
+                
+                # Export Button
+                st.download_button(
+                    label=f"📥 Export Missing Data ({missing_export_filename})",
+                    data=missing_data_df.to_csv(index=False).encode('utf-8'),
+                    file_name=missing_export_filename,
+                    mime="text/csv"
+                )
+
+                # Display Table
+                # Defining visible columns (adjust based on your preferred view)
+                target_cols = ['Match_Status', 'Reason','ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
+                display_df = missing_data_df[[c for c in target_cols if c in missing_data_df.columns]]
+                
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                st.success("🎉 No 'Missing' or 'Update needed' records found in the uploaded reports!")
             # --- 4. Weekly Report & Trend Section ---
             st.divider()
             st.header("📋 4. Weekly Report & Trend Analysis")
