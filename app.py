@@ -274,17 +274,23 @@ if trend_files:
 
                     st.write(f"Showing {len(filtered_display_df)} records.")
                     
+                    # 1. Define the specific columns requested for the export
+                    export_columns = ['Match_Status', 'Reason', 'Time', 'CHARTNAME', 'ID', 'EQUIP', 'Info']
+                    
+                    # 2. Filter the dataframe to only include these columns if they exist
+                    # This prevents the app from crashing if one column name is missing in the source
+                    available_export_cols = [c for c in export_columns if c in filtered_display_df.columns]
+                    
+                    # 3. Pass the sliced dataframe to the download button
                     st.download_button(
                         label=f"📥 Export Current View ({export_filename})",
-                        data=filtered_display_df.to_csv(index=False).encode('utf-8'),
+                        data=filtered_display_df[available_export_cols].to_csv(index=False).encode('utf-8'),
                         file_name=export_filename,
                         mime="text/csv"
                     )
-
                     # Visible columns
                     target_cols = ['Match_Status','Reason','ID', 'Time', 'CHARTNAME', 'EQUIP','Info']
                     final_table = filtered_display_df[[c for c in target_cols if c in filtered_display_df.columns]]
-                    
                     st.dataframe(final_table, use_container_width=True, hide_index=True)
                 else:
                     st.info("No records match the current filter criteria.")
