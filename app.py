@@ -123,7 +123,25 @@ if left_file:
 # --- 3. Consolidation & Trending ---
 st.divider()
 st.header("📊 3. Trend Consolidation")
-trend_files = st.file_uploader("Upload Daily Reports", accept_multiple_files=True, type="csv", key="trend_uploader")
+
+# 1. Initialize a version counter for the uploader key if it doesn't exist
+if "uploader_version" not in st.session_state:
+    st.session_state.uploader_version = 0
+
+# 2. Add the Clear Button
+# This button increments the version, forcing a widget reset
+if st.button("🗑️ Clear All Uploaded Reports"):
+    st.session_state.uploader_version += 1
+    st.rerun()
+
+# 3. Use the dynamic key for the file uploader
+# Note how the key changes whenever uploader_version increases
+trend_files = st.file_uploader(
+    "Upload Daily Reports", 
+    accept_multiple_files=True, 
+    type="csv", 
+    key=f"trend_uploader_v{st.session_state.uploader_version}"
+)
 
 if trend_files:
     all_reports, failed_files = process_trend_reports(trend_files)
