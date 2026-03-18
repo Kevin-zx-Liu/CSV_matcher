@@ -231,36 +231,65 @@ if trend_files:
                 st.warning("⚠️ No 'Reason' column found to analyze APC performance.")
             # --- Chart 4: Missing & Update Needed Data Table ---
             st.divider()
-            st.subheader("📋 4. Detailed Missing/Update Needed Records")
-            
-            # Filter for non-matching records
-            missing_data_df = valid_df[valid_df['Match_Status'].isin(['Missing', 'Update needed'])].copy()
-            
-            if not missing_data_df.empty:
-                # Prepare clean date range for filename
-                start_dt = valid_df['Business_Date'].min().strftime('%Y-%m-%d')
-                end_dt = valid_df['Business_Date'].max().strftime('%Y-%m-%d')
-                missing_export_filename = f"Missing data {start_dt} - {end_dt}.csv"
+            st.subheader("📋 4. Detailed Records Analysis")
 
-                # Layout for Download Button and Table
-                st.write(f"Found {len(missing_data_df)} records requiring attention.")
+            if not valid_df.empty:
+                # Create two columns for the filters
+                filter_col1, filter_col2 = st.columns(2)
                 
-                # Export Button
-                st.download_button(
-                    label=f"📥 Export Missing Data ({missing_export_filename})",
-                    data=missing_data_df.to_csv(index=False).encode('utf-8'),
-                    file_name=missing_export_filename,
-                    mime="text/csv"
-                )
+                with filter_col1:
+                    # 1. Status Filter (Matching / Missing / Update needed)
+                    # We extract unique statuses from the data to ensure accuracy
+                    all_statuses = sorted(valid_df['Match_Status'].unique())
+                    selected_statuses = st.multiselect(
+                        "Filter by Status (Leave empty to show all):",
+                        options=all_statuses,
+                        default=['Missing', 'Update needed'] # Focus on issues by default
+                    )
 
-                # Display Table
-                # Defining visible columns (adjust based on your preferred view)
-                target_cols = ['Match_Status', 'Reason','ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
-                display_df = missing_data_df[[c for c in target_cols if c in missing_data_df.columns]]
+                with filter_col2:
+                    # 2. Chart Name Filter
+                    available_charts = sorted(valid_df['CHARTNAME'].fillna("Unknown").unique())
+                    selected_charts = st.multiselect(
+                        "Filter by Chart Name (Leave empty to show all):", 
+                        options=available_charts
+                    )
+
+                # --- Apply Combined Filtering Logic ---
+                filtered_display_df = valid_df.copy()
                 
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                if selected_statuses:
+                    filtered_display_df = filtered_display_df[filtered_display_df['Match_Status'].isin(selected_statuses)]
+                    
+                if selected_charts:
+                    filtered_display_df = filtered_display_df[
+                        filtered_display_df['CHARTNAME'].fillna("Unknown").isin(selected_charts)
+                    ]
+
+                # --- Export and Table Display ---
+                if not filtered_display_df.empty:
+                    start_dt = valid_df['Business_Date'].min().strftime('%Y-%m-%d')
+                    end_dt = valid_df['Business_Date'].max().strftime('%Y-%m-%d')
+                    export_filename = f"Filtered_Report_{start_dt}_to_{end_dt}.csv"
+
+                    st.write(f"Showing {len(filtered_display_df)} records.")
+                    
+                    st.download_button(
+                        label=f"📥 Export Current View ({export_filename})",
+                        data=filtered_display_df.to_csv(index=False).encode('utf-8'),
+                        file_name=export_filename,
+                        mime="text/csv"
+                    )
+
+                    # Visible columns
+                    target_cols = ['Match_Status','Reason','ID', 'Time', 'CHARTNAME', 'EQUIP','Info']
+                    final_table = filtered_display_df[[c for c in target_cols if c in filtered_display_df.columns]]
+                    
+                    st.dataframe(final_table, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No records match the current filter criteria.")
             else:
-                st.success("🎉 No 'Missing' or 'Update needed' records found in the uploaded reports!")
+                st.info("Upload trend reports above to analyze detailed data.")
             # --- 4. Weekly Report & Trend Section ---
             st.divider()
             st.header("📋 4. Weekly Report & Trend Analysis")
