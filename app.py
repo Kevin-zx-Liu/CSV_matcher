@@ -122,7 +122,7 @@ if left_file:
 
 # --- 3. Consolidation & Trending ---
 st.divider()
-st.header("📊 3. Trend Consolidation")
+st.header("📊 Trend Consolidation")
 
 # 1. Initialize a version counter for the uploader key if it doesn't exist
 if "uploader_version" not in st.session_state:
@@ -150,7 +150,8 @@ if trend_files:
         st.dataframe(pd.DataFrame(failed_files), hide_index=True)
             
     if all_reports:
-        full_df = pd.concat(all_reports)
+        full_df = pd.concat(all_reports, ignore_index=True)
+        full_df = full_df.drop_duplicates()
         full_df['DT'] = pd.to_datetime(full_df['Time'], format='%Y%m%d %H%M%S', errors='coerce')
         full_df.loc[full_df['DT'].isna(), 'DT'] = pd.to_datetime(full_df.loc[full_df['DT'].isna(), 'Time'], errors='coerce')
         valid_df = full_df.dropna(subset=['DT']).copy()
