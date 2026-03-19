@@ -259,10 +259,12 @@ if trend_files:
                     # 1. Status Filter (Matching / Missing / Update needed)
                     # We extract unique statuses from the data to ensure accuracy
                     all_statuses = sorted(valid_df['Match_Status'].unique())
+                    target_defaults = ['Missing', 'Update needed']
+                    final_defaults = [status for status in target_defaults if status in all_statuses]
                     selected_statuses = st.multiselect(
                         "Filter by Status (Leave empty to show all):",
                         options=all_statuses,
-                        default=['Missing', 'Update needed'] # Focus on issues by default
+                        default=final_defaults # Focus on issues by default
                     )
 
                 with filter_col2:
