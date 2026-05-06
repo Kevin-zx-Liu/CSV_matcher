@@ -15,32 +15,53 @@ This is a Python-based Streamlit application designed to validate the performanc
 *   **Pandas:** For efficient data manipulation and analysis of CSV data.
 *   **Altair:** For creating interactive and visually appealing data visualizations (charts).
 
+## Project Structure
+
+```
+ComparisonApp/
+├── app.py                       # Streamlit entry point; calls render_*() per section
+├── scanning.py                  # robust_scan: header discovery + delimiter detection
+├── matching.py                  # extract_metadata, apply_matching_logic
+├── trends.py                    # report aggregation, business-date helpers, APC perf
+├── charts.py                    # Altair chart builders + reason color palette
+├── views/                       # Streamlit per-section UI
+│   ├── matching_view.py         #   file upload + side-by-side match panel
+│   ├── trend_view.py            #   Daily / Reasons / APC charts + detail table
+│   └── weekly_view.py           #   Weekly summary + historical trend
+├── tests/                       # unittest suites, one per module
+├── requirements.txt
+└── .github/workflows/tests.yml  # CI: runs the unittest suite on push and PR
+```
+
 ## Building and Running
 
-To set up and run this project, follow these steps:
-
-1.  **Install Dependencies:**
-    It is recommended to use a virtual environment.
+1.  **Install dependencies** (virtual environment recommended):
     ```bash
-    pip install streamlit pandas altair
+    pip install -r requirements.txt
     ```
 
-2.  **Run the Application:**
-    Navigate to the directory containing `app.py` and run the Streamlit application:
+2.  **Run the application:**
     ```bash
     streamlit run app.py
     ```
-    This command will open the application in your default web browser.
+    This opens the application in your default web browser.
+
+3.  **Run the tests** (no Streamlit server required):
+    ```bash
+    python -m unittest discover -s tests -v
+    ```
 
 ## Development Conventions
 
-*   **Code Structure:** The main application logic resides in `app.py`. Functions are organized for robust CSV scanning (`robust_scan`), main application flow, and trend consolidation.
+*   **Code Structure:** `app.py` is a thin orchestrator. Pure logic lives in `scanning.py`, `matching.py`, and `trends.py`; Altair chart specs live in `charts.py`; per-section UI lives under `views/`. Each view module exposes a single `render_*_section()` function that `app.py` calls in order.
+*   **Testing:** Every pure function has unittest coverage under `tests/`. Streamlit-coupled paths (e.g. the `st.toast` call inside `apply_matching_logic`) are exercised with `unittest.mock.patch`. Chart builders have smoke tests that assert key spec fields without rendering.
 *   **Error Handling:** Basic error handling is present for file uploads and data processing.
 *   **UI/UX:** The application prioritizes a wide layout and clear labeling for user interaction, making heavy use of Streamlit's widgets for file uploading, data display, and charting.
 *   **Data Normalization:** Lot IDs and Chart Names are normalized (uppercase, stripped whitespace) for consistent matching.
-*   **Comments:** Code includes comments to explain complex logic, especially within the scanning and matching sections.
+*   **Comments:** Code uses inline comments only where the *why* is non-obvious. Most identifiers are self-describing.
 
-## TODO:
-*   Re-structre the program into several modules: `app.py` only as entry point, `utils.py` for general-purpose helper functions like data cleaning, `logic.py` for data manipulation functions
-*   Consider adding a `requirements.txt` file to explicitly manage Python dependencies.
-*   Add unit tests for core functionalities like `robust_scan` and matching logic.
+## Continuous Integration
+
+Every push to `main` and every pull request targeting `main` triggers the workflow at `.github/workflows/tests.yml`. The job sets up Python 3.12, installs `requirements.txt`, and runs the full unittest suite on Ubuntu. The `main` branch is protected: PRs cannot be merged until the `test` check passes, and direct pushes to `main` are blocked.
+
+To add a new test, drop a `test_*.py` file under `tests/` with a `unittest.TestCase` subclass; CI will pick it up automatically.
