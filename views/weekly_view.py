@@ -5,8 +5,7 @@ from charts import build_current_week_bar, build_weekly_trend_chart
 
 
 def render_weekly_section(full_df, valid_df):
-    st.divider()
-    st.header("📋 4. Weekly Report & Trend Analysis")
+    st.header("📋 Weekly Report & Trend Analysis")
 
     wk_col1, wk_col2 = st.columns([1, 3])
     with wk_col1:
