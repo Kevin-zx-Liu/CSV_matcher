@@ -7,7 +7,6 @@ from charts import build_daily_chart, build_reasons_chart, build_apc_performance
 
 def render_trend_section():
     """Renders the Trend Consolidation block. Returns (full_df, valid_df) when data is available, else None."""
-    st.divider()
     st.header("📊 Trend Consolidation")
 
     trend_files = _render_trend_uploader()

@@ -2,6 +2,8 @@
 
 This is a Python-based Streamlit application designed to validate the performance of a new database. Its primary purpose is to compare two CSV files, identify matching and missing records based on various criteria (like Lot ID and Chart Name), and provide an interactive web interface for analysis and reporting.
 
+> **New here?** See [USER_GUIDE.md](USER_GUIDE.md) for an end-user walkthrough (install, run, upload, export). The rest of this README is for developers working on the codebase.
+
 **Key Features:**
 *   **Robust CSV Scanning:** Automatically detects delimiters (comma or semicolon) and intelligently identifies relevant columns even with variations in headers.
 *   **Data Matching:** Compares records between two uploaded CSV files based on Lot ID and extracted Chart Names. Includes special handling for complex "ChildLot" IDs.
