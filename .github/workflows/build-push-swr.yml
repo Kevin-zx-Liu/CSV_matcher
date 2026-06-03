@@ -1,0 +1,35 @@
+name: Build and Push to SWR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Registry host + organization come from the SWR "Generate Login Command"
+  # page. Set SWR_REGISTRY and SWR_ORGANIZATION as repo variables (or hardcode).
+  REGISTRY: ${{ vars.SWR_REGISTRY }}          # e.g. swr.eu-de.otc.t-systems.com
+  ORGANIZATION: ${{ vars.SWR_ORGANIZATION }}  # the SWR organization/namespace
+  IMAGE_NAME: comparisonapp
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to SWR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.SWR_REGISTRY }}
+          username: ${{ secrets.SWR_USERNAME }}
+          password: ${{ secrets.SWR_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.ORGANIZATION }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.ORGANIZATION }}/${{ env.IMAGE_NAME }}:${{ github.sha }}

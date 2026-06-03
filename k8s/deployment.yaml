@@ -1,0 +1,62 @@
+# Kubernetes manifest for T-Cloud Public (CCI / CCE) or any Kubernetes platform.
+# Replace <REGISTRY>/<IMAGE>:<TAG> with the image path from your T-Cloud registry,
+# e.g. swr.eu-de.otc.t-systems.com/<org>/comparisonapp:latest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comparisonapp
+  labels:
+    app: comparisonapp
+spec:
+  # Keep at 1: Streamlit holds session state in memory and does not share it
+  # across pods. Scale out only with sticky sessions configured.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comparisonapp
+  template:
+    metadata:
+      labels:
+        app: comparisonapp
+    spec:
+      containers:
+        - name: comparisonapp
+          image: <REGISTRY>/<IMAGE>:<TAG>
+          ports:
+            - containerPort: 8501
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comparisonapp
+  labels:
+    app: comparisonapp
+spec:
+  # LoadBalancer gives the app an external IP. On T-Cloud this provisions an
+  # Elastic Load Balancer; check their console for any required annotations.
+  type: LoadBalancer
+  selector:
+    app: comparisonapp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8501
