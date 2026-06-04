@@ -25,10 +25,10 @@ def render_matching_section():
 
     col1, col2 = st.columns(2)
     with col1:
-        left_file = st.file_uploader("Upload Left CSV (Hold Data)", type="csv")
+        left_file = st.file_uploader("Upload Match Target (As is)", type="csv")
     with col2:
         right_files = st.file_uploader(
-            "Upload Right CSV (Process Data)", type="csv", accept_multiple_files=True
+            "Upload New Result (To be)", type="csv", accept_multiple_files=True
         )
 
     if not left_file:
