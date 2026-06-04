@@ -2,7 +2,7 @@
 
 This is a Python-based Streamlit application designed to validate the performance of a new database. Its primary purpose is to compare two CSV files, identify matching and missing records based on various criteria (like Lot ID and Chart Name), and provide an interactive web interface for analysis and reporting.
 
-> **New here?** See [USER_GUIDE.md](USER_GUIDE.md) for an end-user walkthrough (install, run, upload, export). The rest of this README is for developers working on the codebase.
+> **New here?** See [USER_GUIDE.md](USER_GUIDE.md) for an end-user walkthrough (install, run, upload, export). To deploy the app to the cloud (T-Cloud Public via SWR + CCE), see [DEPLOYMENT.md](DEPLOYMENT.md). The rest of this README is for developers working on the codebase.
 
 **Key Features:**
 *   **Robust CSV Scanning:** Automatically detects delimiters (comma or semicolon) and intelligently identifies relevant columns even with variations in headers.
@@ -32,7 +32,15 @@ ComparisonApp/
 │   └── weekly_view.py           #   Weekly summary + historical trend
 ├── tests/                       # unittest suites, one per module
 ├── requirements.txt
-└── .github/workflows/tests.yml  # CI: runs the unittest suite on push and PR
+├── Dockerfile                   # builds the container image (Streamlit on :8501)
+├── .dockerignore                # excludes git/tests/caches from the image
+├── docker-compose.yml           # local container run
+├── .streamlit/config.toml       # headless mode, telemetry off, upload limit
+├── k8s/deployment.yaml          # portable Kubernetes manifest (CCE/CCI/any cluster)
+├── DEPLOYMENT.md                # step-by-step cloud deployment manual
+└── .github/workflows/
+    ├── tests.yml                # CI: runs the unittest suite on push and PR
+    └── build-push-swr.yml       # CD: builds image and pushes to T-Cloud SWR
 ```
 
 ## Building and Running
@@ -53,6 +61,22 @@ ComparisonApp/
     python -m unittest discover -s tests -v
     ```
 
+4.  **Run in a container** (optional, requires a container tool):
+    ```bash
+    docker compose up --build      # serves on http://localhost:8501
+    ```
+
+## Deployment
+
+The app is containerized and runs on T-Cloud Public using SWR (image registry) and
+CCE (managed Kubernetes). The image is built and pushed automatically by
+`.github/workflows/build-push-swr.yml`, then deployed to a cluster.
+
+For the full, beginner-friendly walkthrough (registry setup, cluster creation, node
+pool, workload, load balancer, domain, cost control, and troubleshooting), see
+**[DEPLOYMENT.md](DEPLOYMENT.md)**. The portable Kubernetes manifest is in
+`k8s/deployment.yaml`.
+
 ## Development Conventions
 
 *   **Code Structure:** `app.py` is a thin orchestrator. Pure logic lives in `scanning.py`, `matching.py`, and `trends.py`; Altair chart specs live in `charts.py`; per-section UI lives under `views/`. Each view module exposes a single `render_*_section()` function that `app.py` calls in order.
@@ -67,3 +91,5 @@ ComparisonApp/
 Every push to `main` and every pull request targeting `main` triggers the workflow at `.github/workflows/tests.yml`. The job sets up Python 3.12, installs `requirements.txt`, and runs the full unittest suite on Ubuntu. The `main` branch is protected: PRs cannot be merged until the `test` check passes, and direct pushes to `main` are blocked.
 
 To add a new test, drop a `test_*.py` file under `tests/` with a `unittest.TestCase` subclass; CI will pick it up automatically.
+
+A second workflow, `.github/workflows/build-push-swr.yml`, handles delivery: on push to `main` (or manual trigger) it builds the container image and pushes it to T-Cloud SWR. It needs the repository secrets/variables documented in [DEPLOYMENT.md](DEPLOYMENT.md) (`SWR_USERNAME`, `SWR_PASSWORD`, `SWR_REGISTRY`, `SWR_ORGANIZATION`).
