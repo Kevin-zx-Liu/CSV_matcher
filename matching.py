@@ -1,6 +1,22 @@
 import streamlit as st
 
 
+EXPORT_COLUMNS = ['Match_Status', 'ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
+
+
+def build_export_report(df_left):
+    """
+    Builds the matching-report DataFrame for export: derives Match_Status from
+    the Found_in_Right boolean and selects EXPORT_COLUMNS (those present, in order).
+    """
+    df_export = df_left.copy()
+    df_export['Match_Status'] = df_export['Found_in_Right'].apply(
+        lambda x: "Matching" if x else "Missing"
+    )
+    export_cols = [c for c in EXPORT_COLUMNS if c in df_export.columns]
+    return df_export[export_cols]
+
+
 def extract_metadata(df_left):
     """
     Extracts CHARTNAME and EQUIP from the 'Info' column.

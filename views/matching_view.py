@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from scanning import robust_scan
-from matching import extract_metadata, apply_matching_logic
+from matching import extract_metadata, apply_matching_logic, build_export_report
 from trends import get_export_filename
 
 
@@ -96,15 +96,12 @@ def _render_left_panel(df_left):
         with st.expander("📋 View Chart Name List (String Format)"):
             st.code(formatted_list, language="text")
 
-    df_export = df_left.copy()
-    df_export['Match_Status'] = df_export['Found_in_Right'].apply(lambda x: "Matching" if x else "Missing")
+    df_export = build_export_report(df_left)
     export_filename = get_export_filename(df_export)
-    export_cols = [c for c in ['Match_Status', 'ID', 'Time', 'CHARTNAME', 'EQUIP', 'Info']
-                   if c in df_export.columns]
 
     st.download_button(
         label=f"📥 Export Report ({export_filename})",
-        data=df_export[export_cols].to_csv(index=False).encode('utf-8'),
+        data=df_export.to_csv(index=False).encode('utf-8'),
         file_name=export_filename,
         mime="text/csv",
     )
