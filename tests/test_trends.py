@@ -59,7 +59,9 @@ class TestProcessTrendReports(unittest.TestCase):
         )
 
     def test_records_failure_when_required_columns_missing(self):
-        csv = "foo,bar\n1,2\n"
+        # Semicolon-separated so the comma->semicolon re-read fallback doesn't
+        # collapse the headers into a single 'foo,bar' column.
+        csv = "foo;bar\n1;2\n"
         files = [make_named_file(csv, name="bad.csv")]
 
         all_reports, failed = process_trend_reports(files)
@@ -68,18 +70,20 @@ class TestProcessTrendReports(unittest.TestCase):
         self.assertEqual(len(failed), 1)
         self.assertEqual(failed[0]['File'], 'bad.csv')
 
-        reason = failed[0]['Reason']
-        # Names both missing canonical columns
-        self.assertIn('Match_Status', reason)
-        self.assertIn('Time', reason)
-        # Lists accepted header aliases so the user knows what to rename to
-        self.assertIn('LOT_HOLD_TIME', reason)
-        self.assertIn('COMMENT', reason)
-        # Echoes what the file actually contained
-        self.assertIn('foo', reason)
-        self.assertIn('bar', reason)
+        # Short summary names both missing canonical columns
+        self.assertIn('Match_Status', failed[0]['Reason'])
+        self.assertIn('Time', failed[0]['Reason'])
 
-    def test_failure_reason_omits_present_column(self):
+        # Structured detail: each missing column with the headers accepted for it
+        accepted_by_col = {m['column']: m['accepted'] for m in failed[0]['Missing']}
+        self.assertEqual(set(accepted_by_col), {'Match_Status', 'Time'})
+        self.assertIn('LOT_HOLD_TIME', accepted_by_col['Time'])
+        self.assertIn('COMMENT', accepted_by_col['Match_Status'])
+
+        # Echoes the headers actually found in the file
+        self.assertEqual(failed[0]['Found'], ['foo', 'bar'])
+
+    def test_failure_omits_present_column(self):
         # Time is present (recognized via the LOT_HOLD_TIME alias); only
         # Match_Status should be reported missing. Semicolon-separated so the
         # comma->semicolon re-read fallback doesn't collapse it into one column.
@@ -89,17 +93,21 @@ class TestProcessTrendReports(unittest.TestCase):
         all_reports, failed = process_trend_reports(files)
 
         self.assertEqual(all_reports, [])
-        reason = failed[0]['Reason']
-        self.assertIn("'Match_Status'", reason)
-        self.assertNotIn("'Time'", reason)
+        missing_cols = [m['column'] for m in failed[0]['Missing']]
+        self.assertIn('Match_Status', missing_cols)
+        self.assertNotIn('Time', missing_cols)
 
     def test_records_failure_for_unreadable_file(self):
-        files = [make_named_file(b"\x00\x01\x02\x03", name="binary.csv")]
+        # An empty file makes pandas raise, exercising the read-error branch.
+        files = [make_named_file(b"", name="empty.csv")]
         all_reports, failed = process_trend_reports(files)
 
         self.assertEqual(all_reports, [])
         self.assertEqual(len(failed), 1)
-        self.assertEqual(failed[0]['File'], 'binary.csv')
+        self.assertEqual(failed[0]['File'], 'empty.csv')
+        self.assertIn('Could not read', failed[0]['Reason'])
+        # Read errors use the same dict shape with no missing-column breakdown
+        self.assertEqual(failed[0]['Missing'], [])
 
 
 class TestGetTrendSuffix(unittest.TestCase):

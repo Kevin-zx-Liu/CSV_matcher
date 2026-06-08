@@ -20,18 +20,16 @@ def get_export_filename(df_export):
     return export_filename
 
 
-def _missing_columns_reason(missing, found_headers, rename_map):
-    """Builds a detailed skip reason: which required column is missing, which
-    header names would have been accepted for it, and what the file actually had."""
-    parts = []
-    for col in missing:
-        accepted = [col] + [raw for raw, target in rename_map.items() if target == col]
-        parts.append(f"'{col}' (accepts: {', '.join(accepted)})")
-    found = ', '.join(found_headers) if found_headers else "none"
-    return (
-        f"Missing required column(s): {'; '.join(parts)}. "
-        f"Found in file: {found}."
-    )
+def _describe_missing_columns(missing, rename_map):
+    """For each missing required column, lists the header names that would have
+    been accepted for it (the canonical name plus its aliases in rename_map)."""
+    return [
+        {
+            'column': col,
+            'accepted': [col] + [raw for raw, target in rename_map.items() if target == col],
+        }
+        for col in missing
+    ]
 
 
 def process_trend_reports(trend_files):
@@ -62,7 +60,9 @@ def process_trend_reports(trend_files):
             if missing:
                 failed_files.append({
                     'File': file.name,
-                    'Reason': _missing_columns_reason(missing, found_headers, rename_map),
+                    'Reason': f"Missing required column(s): {', '.join(missing)}",
+                    'Missing': _describe_missing_columns(missing, rename_map),
+                    'Found': found_headers,
                 })
                 continue
 
@@ -72,7 +72,12 @@ def process_trend_reports(trend_files):
             })
             all_reports.append(df_temp)
         except Exception as e:
-            failed_files.append({'File': file.name, 'Reason': str(e)})
+            failed_files.append({
+                'File': file.name,
+                'Reason': f"Could not read the file ({e})",
+                'Missing': [],
+                'Found': [],
+            })
 
     return all_reports, failed_files
 

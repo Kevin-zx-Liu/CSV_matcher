@@ -15,9 +15,12 @@ def render_trend_section():
 
     all_reports, failed_files = process_trend_reports(trend_files)
     if failed_files:
-        st.warning(f"⚠️ {len(failed_files)} file(s) were skipped:")
+        st.warning(
+            f"⚠️ {len(failed_files)} file(s) were skipped and left out of the trend. "
+            "Expand a file below to see what's wrong and how to fix it."
+        )
         for f in failed_files:
-            st.markdown(f"- **{f['File']}** — {f['Reason']}")
+            _render_skipped_file(f)
 
     if not all_reports:
         return None
@@ -41,6 +44,28 @@ def render_trend_section():
     _render_detail_table(valid_df)
 
     return full_df, valid_df
+
+
+def _render_skipped_file(failure):
+    """Renders one skipped file as an expander explaining the problem and the fix."""
+    with st.expander(f"📄 {failure['File']} — {failure['Reason']}"):
+        missing = failure.get('Missing') or []
+        if not missing:
+            # A read error (corrupt file, wrong encoding, etc.) — the reason says it all.
+            st.markdown("This file could not be read as a CSV, so it was skipped.")
+            return
+
+        st.markdown(
+            "The report needs these column(s). **Rename a column in your file** "
+            "to one of the accepted names, then re-upload:"
+        )
+        for item in missing:
+            accepted = ", ".join(f"`{name}`" for name in item['accepted'])
+            st.markdown(f"- Needs a **{item['column']}** column — accepted headers: {accepted}")
+
+        found = failure.get('Found') or []
+        found_str = ", ".join(f"`{name}`" for name in found) if found else "_none detected_"
+        st.markdown(f"**Columns currently in your file:** {found_str}")
 
 
 def _render_trend_uploader():
