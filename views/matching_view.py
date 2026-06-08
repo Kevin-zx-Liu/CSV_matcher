@@ -109,17 +109,29 @@ def _render_left_panel(df_left):
 
 def _render_left_dataframe(df_left):
     display_cols = ['Found_in_Right', 'ID', 'Time', 'CHARTNAME', 'EQUIP']
-    return st.dataframe(
-        df_left[[c for c in display_cols if c in df_left.columns]],
-        on_select="rerun",
-        selection_mode="single-row",
-        width=1000,
-        hide_index=True,
-        column_config={
-            "Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True),
-            "Time": "Lothold Time",
-        },
+
+    # Hide this table's built-in hover toolbar (which includes a "Download as
+    # CSV" button) so users export via the "Export Report" button instead. The
+    # built-in download dumps the raw display columns (e.g. Found_in_Right),
+    # which differs from the report columns and confuses users. Scoped to this
+    # table only via the container key so other tables keep their toolbars.
+    st.markdown(
+        '<style>.st-key-temptation_table [data-testid="stElementToolbar"]'
+        ' { display: none; }</style>',
+        unsafe_allow_html=True,
     )
+    with st.container(key="temptation_table"):
+        return st.dataframe(
+            df_left[[c for c in display_cols if c in df_left.columns]],
+            on_select="rerun",
+            selection_mode="single-row",
+            width=1000,
+            hide_index=True,
+            column_config={
+                "Found_in_Right": st.column_config.CheckboxColumn("MatchFound", disabled=True),
+                "Time": "Lothold Time",
+            },
+        )
 
 
 def _render_right_panel(df_left, df_right, selection):
