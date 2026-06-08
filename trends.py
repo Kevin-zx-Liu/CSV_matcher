@@ -20,6 +20,20 @@ def get_export_filename(df_export):
     return export_filename
 
 
+def _missing_columns_reason(missing, found_headers, rename_map):
+    """Builds a detailed skip reason: which required column is missing, which
+    header names would have been accepted for it, and what the file actually had."""
+    parts = []
+    for col in missing:
+        accepted = [col] + [raw for raw, target in rename_map.items() if target == col]
+        parts.append(f"'{col}' (accepts: {', '.join(accepted)})")
+    found = ', '.join(found_headers) if found_headers else "none"
+    return (
+        f"Missing required column(s): {'; '.join(parts)}. "
+        f"Found in file: {found}."
+    )
+
+
 def process_trend_reports(trend_files):
     """Consolidates multiple reports and prepares data for trending."""
     all_reports = []
@@ -40,11 +54,16 @@ def process_trend_reports(trend_files):
                 df_temp = pd.read_csv(file, sep=';')
 
             df_temp.columns = df_temp.columns.str.strip()
+            found_headers = list(df_temp.columns)
             df_temp.rename(columns=rename_map, inplace=True)
 
             required_check = ['Match_Status', 'Time']
-            if not all(col in df_temp.columns for col in required_check):
-                failed_files.append({'File': file.name, 'Reason': "Missing required columns"})
+            missing = [col for col in required_check if col not in df_temp.columns]
+            if missing:
+                failed_files.append({
+                    'File': file.name,
+                    'Reason': _missing_columns_reason(missing, found_headers, rename_map),
+                })
                 continue
 
             df_temp['Match_Status'] = df_temp['Match_Status'].astype(str).str.title().str.strip()
