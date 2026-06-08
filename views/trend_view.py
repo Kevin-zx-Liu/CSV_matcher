@@ -15,8 +15,9 @@ def render_trend_section():
 
     all_reports, failed_files = process_trend_reports(trend_files)
     if failed_files:
-        st.warning("⚠️ The following files were skipped:")
-        st.dataframe(pd.DataFrame(failed_files), hide_index=True)
+        st.warning(f"⚠️ {len(failed_files)} file(s) were skipped:")
+        for f in failed_files:
+            st.markdown(f"- **{f['File']}** — {f['Reason']}")
 
     if not all_reports:
         return None

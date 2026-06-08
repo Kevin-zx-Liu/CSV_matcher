@@ -68,6 +68,31 @@ class TestProcessTrendReports(unittest.TestCase):
         self.assertEqual(len(failed), 1)
         self.assertEqual(failed[0]['File'], 'bad.csv')
 
+        reason = failed[0]['Reason']
+        # Names both missing canonical columns
+        self.assertIn('Match_Status', reason)
+        self.assertIn('Time', reason)
+        # Lists accepted header aliases so the user knows what to rename to
+        self.assertIn('LOT_HOLD_TIME', reason)
+        self.assertIn('COMMENT', reason)
+        # Echoes what the file actually contained
+        self.assertIn('foo', reason)
+        self.assertIn('bar', reason)
+
+    def test_failure_reason_omits_present_column(self):
+        # Time is present (recognized via the LOT_HOLD_TIME alias); only
+        # Match_Status should be reported missing. Semicolon-separated so the
+        # comma->semicolon re-read fallback doesn't collapse it into one column.
+        csv = "foo;LOT_HOLD_TIME\n1;20250101 120000\n"
+        files = [make_named_file(csv, name="partial.csv")]
+
+        all_reports, failed = process_trend_reports(files)
+
+        self.assertEqual(all_reports, [])
+        reason = failed[0]['Reason']
+        self.assertIn("'Match_Status'", reason)
+        self.assertNotIn("'Time'", reason)
+
     def test_records_failure_for_unreadable_file(self):
         files = [make_named_file(b"\x00\x01\x02\x03", name="binary.csv")]
         all_reports, failed = process_trend_reports(files)
